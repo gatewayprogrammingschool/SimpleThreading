@@ -6,8 +6,11 @@ using System.Threading.Tasks;
 
 namespace GPS.SimpleThreading.Blocks
 {
-    public class ThreadBlock<T, TResult>
+    public sealed class ThreadBlock<T, TResult>
     {
+        private readonly ThreadSafeDictionary<Tuple<T, Task<TResult>>, TResult> _results =
+            new ThreadSafeDictionary<Tuple<T, Task<TResult>>, TResult>();
+
         private readonly ThreadSafeList<T> _baseList =
             new ThreadSafeList<T>();
 
@@ -68,8 +71,11 @@ namespace GPS.SimpleThreading.Blocks
             {
                 var item = queue.Dequeue();
 
-                var task = new Task<TResult>(() => _action(item)).ContinueWith(r =>
+                var task = new Task<TResult>(() => _action(item));
+                
+                task.ContinueWith(r =>
                 {
+                    _results.Add(new Tuple<T,Task<TResult>>(item, r), r.Result);
                     lock (padLock)
                     {
                         depth--;
@@ -77,11 +83,6 @@ namespace GPS.SimpleThreading.Blocks
                 });
 
                 allTasks.Add(task);
-
-                lock (padLock)
-                {
-                    depth++;
-                }
             }
 
             foreach (var t in allTasks)
@@ -94,7 +95,7 @@ namespace GPS.SimpleThreading.Blocks
 
                 while (d >= maxDegreeOfParallelization)
                 {
-                    System.Threading.Thread.Sleep(1);
+                    System.Threading.Thread.Sleep(5);
                     lock (padLock)
                     {
                         d = depth;
@@ -112,6 +113,24 @@ namespace GPS.SimpleThreading.Blocks
             if (continuation != null)
             {
                 factory.ContinueWhenAll(allTasks.ToArray(), continuation);
+            }
+        }
+
+        public List<KeyValuePair<T, TResult>> Results
+        {
+            get
+            {
+                var results = new List<KeyValuePair<T, TResult>>();
+
+                foreach (var key in _results.Keys)
+                {
+                    var result = _results[key];
+                    var value = key.Item1;
+
+                    results.Add(new KeyValuePair<T, TResult>(value, result));
+                }
+
+                return results;
             }
         }
     }
