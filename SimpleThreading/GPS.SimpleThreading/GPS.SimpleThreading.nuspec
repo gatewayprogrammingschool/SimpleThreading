@@ -1,0 +1,16 @@
+<package>
+  <metadata>
+    <id>GPS.SimpleThreading</id>
+    <version>$Version$</version>
+    <authors>Payton Byrd</authors>
+    <owners>Gateway Programming School, Inc.</owners>
+    <tags>Threading Parallel-Computing</tags>
+    <licenseUrl>https://github.com/gatewayprogrammingschool/SimpleThreading/blob/master/LICENSE</licenseUrl>
+    <projectUrl>http://simplethreading.gatewayprogramming.school</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>SimpleThreading is a small library of collections and blocks aimed to simplify parallel coding.</description>
+  </metadata>
+  <files>
+    <file src=".\bin\Release\GPS.SimpleThreading.*" target="lib\net452" exclude="**\*.nupkg" />
+  </files>
+</package>
