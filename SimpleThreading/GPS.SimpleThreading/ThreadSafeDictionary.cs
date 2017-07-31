@@ -28,11 +28,20 @@ namespace GPS.SimpleThreading
             }
         }
 
+        public Func<K, V, KeyValuePair<K, V>> Constructor { get; set; }
+
         public void Add(KeyValuePair<K, V> item)
         {
             lock (_padLock)
             {
-                _baseDictionary.Add(item.Key, item.Value);
+                if (!ContainsKey(item.Key))
+                {
+                    _baseDictionary.Add(item.Key, item.Value);
+                }
+                else
+                {
+                    _baseDictionary[item.Key] = item.Value;
+                }
             }
         }
 
@@ -40,7 +49,7 @@ namespace GPS.SimpleThreading
         {
             lock (_padLock)
             {
-                _baseDictionary.Add(key, item);
+                Add(Constructor.Invoke(key, item));
             }
         }
 
@@ -119,6 +128,11 @@ namespace GPS.SimpleThreading
             {
                 lock (_padLock)
                 {
+                    if (!_baseDictionary.ContainsKey(key))
+                    {
+                        Add(Constructor.Invoke(key, default(V)));
+                    }
+
                     return _baseDictionary[key];
                 }
             }
@@ -126,6 +140,11 @@ namespace GPS.SimpleThreading
             {
                 lock (_padLock)
                 {
+                    if (!_baseDictionary.ContainsKey(key))
+                    {
+                        Add(Constructor.Invoke(key, value));
+                    }
+
                     _baseDictionary[key] = value;
                 }
             }
