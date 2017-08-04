@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using GPS.SimpleExtensions;
 using GPS.SimpleThreading.Blocks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -23,11 +24,11 @@ namespace GPS.SimpleThreading.Tests
 
             block.LockList();
 
-            block.Execute(5, tasks =>
+            block.Execute(5, null, tasks =>
             {
                 Assert.AreEqual(10, block.Results.Count);
 
-                block.Results.ForEach(pair =>
+                Parallel.ForEach(block.Results, pair =>
                 {
                     Debug.WriteLine($"{pair.Key} - {pair.Value}");
                     $"{pair.Key} - {pair.Value}".ToDebug();

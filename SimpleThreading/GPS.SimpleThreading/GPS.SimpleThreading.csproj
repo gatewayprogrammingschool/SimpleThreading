@@ -42,9 +42,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Blocks\NotLockedException.cs" />
     <Compile Include="Blocks\ThreadBlock.cs" />
-    <Compile Include="ThreadSafeDictionary.cs" />
-    <Compile Include="ThreadSafeList.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

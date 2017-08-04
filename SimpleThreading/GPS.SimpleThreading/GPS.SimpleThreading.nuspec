@@ -9,6 +9,15 @@
     <projectUrl>http://simplethreading.gatewayprogramming.school</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>SimpleThreading is a small library of collections and blocks aimed to simplify parallel coding.</description>
+    <releaseNotes>
+      Version 2.0.0
+      The Sharp Ninja
+      
+      * Removed ThreadSafeList
+      * Removed ThreadSafeDictionary
+      * Converted ThreadBlock to concurrent collections.
+      * Added warmupItem action to ThreadBlock.
+    </releaseNotes>
   </metadata>
   <files>
     <file src=".\bin\Release\GPS.SimpleThreading.*" target="lib\net452" exclude="**\*.nupkg" />
