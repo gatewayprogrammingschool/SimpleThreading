@@ -1,0 +1,8 @@
+Version 2.0.0.1
+The Sharp Ninja
+      
+* Removed ThreadSafeList
+* Removed ThreadSafeDictionary
+* Converted ThreadBlock to concurrent collections.
+* Added warmupItem action to ThreadBlock.
+* Converted to PAKET

@@ -1,0 +1,11 @@
+type project
+licenseUrl https://github.com/gatewayprogrammingschool/SimpleThreading/blob/master/LICENSE
+projectUrl http://simplethreading.gatewayprogramming.school/
+iconUrl http://gatewayprogramming.school/gps.png
+owners Gateway Programming School, Inc.
+authors The Sharp Ninja
+copyright Copyright 2017 (c) Gateway Programming School, Inc.
+summary Simple Threading Library.  Presents the ThreadBlock parallel processing block.  Allows for thread warm-up and completed delegates.
+tags parallel-processing threading
+include-pdbs true
+
