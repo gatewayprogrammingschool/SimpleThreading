@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GPS.SimpleThreading.Blocks
@@ -56,10 +57,15 @@ namespace GPS.SimpleThreading.Blocks
         }
 
         public void Execute(
-            int maxDegreeOfParallelization = 1,
+            int maxDegreeOfParallelization = -1,
             Action<T> warmupItem = null,
             Action<Task[]> continuation = null)
         {
+            if (maxDegreeOfParallelization == -1) maxDegreeOfParallelization = MaxDegreeOfParallelism;
+            if (maxDegreeOfParallelization < 1)
+                throw new ArgumentOutOfRangeException(
+                    $"Must supply positive value for either {nameof(maxDegreeOfParallelization)} or this.{nameof(MaxDegreeOfParallelism)}.");
+
             var padLock = new object();
             if (!_locked) throw new NotLockedException();
 
@@ -67,7 +73,6 @@ namespace GPS.SimpleThreading.Blocks
             var allTasks = new List<Task>();
 
             int[] depth = {0};
-            var factory = new TaskFactory(TaskScheduler.Default);
 
             while (queue.Any())
             {
@@ -114,10 +119,23 @@ namespace GPS.SimpleThreading.Blocks
                 }
             }
 
-            if (continuation != null)
+            var dd = 0;
+
+            lock(padLock)
             {
-                factory.ContinueWhenAll(allTasks.ToArray(), continuation);
+                dd = depth[0];
             }
+
+            while (dd > 0)
+            {
+                Thread.Sleep(5);
+                lock (padLock)
+                {
+                    dd = depth[0];
+                }
+            }
+
+            continuation?.Invoke(allTasks.ToArray());            
         }
 
         public ConcurrentDictionary<T, TResult> Results
