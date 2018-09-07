@@ -20,6 +20,6 @@
     </releaseNotes>
   </metadata>
   <files>
-    <file src=".\bin\Release\GPS.SimpleThreading.*" target="lib\net452" exclude="**\*.nupkg" />
+    <file src=".\bin\Release\GPS.SimpleThreading.*" target="netstandard2.0" exclude="**\*.nupkg" />
   </files>
 </package>
