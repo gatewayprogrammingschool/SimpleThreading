@@ -1,39 +1,74 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using GPS.SimpleExtensions;
+using System.Linq;
 using GPS.SimpleThreading.Blocks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using GPS.SimpleExtensions;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace GPS.SimpleThreading.Tests
 {
-    [TestClass]
     public class ThreadBlockTests
     {
-        [TestMethod]
+        ITestOutputHelper _log;
+
+        public ThreadBlockTests(ITestOutputHelper log)
+        {
+            _log = log;
+        }
+
+        [Fact]
         public void ExecuteThreadBlock()
         {
-            var block = new ThreadBlock<string, int>(s =>
-            {
-                var result = 0;
-                return int.TryParse(s, out result) ? result : 0;
-            });
+            var block = new ThreadBlock<string, int>(
+                s =>
+                {
+                    var result = 0;
+                    if (int.TryParse(s, out result))
+                    {
+                        return result;
+                    }
 
-            block.AddRange(new List<string>{ "1", "2", "3", "four", "5", "six", "7", "8", "nine", "10"});
+                    return 0;
+                },
+                r =>
+                {
+                    Assert.NotEmpty(r);
+                    Assert.Equal(10, r.Length);
+                });
+
+            block.AddRange(new string[] { "1", "2", "3", "42", "5", "-6", "7", "8", "11", "10" });
 
             block.LockList();
 
-            block.Execute(5, null, tasks =>
-            {
-                Assert.AreEqual(10, block.Results.Count);
+            var results = new ConcurrentBag<(string, int)?>();
 
-                Parallel.ForEach(block.Results, pair =>
+            block.Execute(5, null,
+            (item, result) =>
+            {
+                result.AssertParameterNotNull("Result should never be null.", nameof(result));
+
+                _log.WriteLine($"{(result.Value.data ?? "null")} - {(result.Value.result)}");
+                
+                results.Add(result);
+
+                var parsed = 0;
+                if (int.TryParse(result.Value.data, out parsed))
                 {
-                    Debug.WriteLine($"{pair.Key} - {pair.Value}");
-                    $"{pair.Key} - {pair.Value}".ToDebug();
-                });
+                    Xunit.Assert.Equal(result.Value.result, parsed);
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        $"{result.Value.data} does not parse to {result.Value.result}");
+                }
             });
+
+            _log.WriteLine($"Results Count: {results.Count}");
+            Xunit.Assert.NotEmpty(results);
+            Xunit.Assert.Equal(10, results.Count);
         }
     }
 }

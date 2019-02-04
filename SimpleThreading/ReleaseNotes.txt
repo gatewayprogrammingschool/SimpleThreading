@@ -1,8 +1,7 @@
-Version 2.0.0.1
-The Sharp Ninja
-      
-* Removed ThreadSafeList
-* Removed ThreadSafeDictionary
-* Converted ThreadBlock to concurrent collections.
-* Added warmupItem action to ThreadBlock.
-* Converted to PAKET
+Version 3.0.0
+Payton Byrd (The Sharp Ninja)
+
+* Removed Paket
+* Refactored projects for Netstandard 2.0
+* Added per-item continuation
+* Changed return types to inferred tuples containing the source data and result.

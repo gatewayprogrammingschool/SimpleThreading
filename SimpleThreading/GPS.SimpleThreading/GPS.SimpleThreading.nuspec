@@ -1,7 +1,9 @@
+<?xml version="1.0"?>
 <package>
   <metadata>
     <id>GPS.SimpleThreading</id>
-    <version>$Version$</version>
+    <title>GPS.SimpleThreading</title>
+    <version>3.0.0</version>
     <authors>Payton Byrd</authors>
     <owners>Gateway Programming School, Inc.</owners>
     <tags>Threading Parallel-Computing</tags>
@@ -9,17 +11,16 @@
     <projectUrl>http://simplethreading.gatewayprogramming.school</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>SimpleThreading is a small library of collections and blocks aimed to simplify parallel coding.</description>
-    <releaseNotes>
-      Version 2.0.0
-      The Sharp Ninja
-      
-      * Removed ThreadSafeList
-      * Removed ThreadSafeDictionary
-      * Converted ThreadBlock to concurrent collections.
-      * Added warmupItem action to ThreadBlock.
-    </releaseNotes>
+    <releaseNotes>Version 3.0.0
+Payton Byrd (The Sharp Ninja)
+
+* Removed Paket
+* Refactored projects for Netstandard 2.0
+* Added per-item continuation
+* Changed return types to inferred tuples containing the source data and result.</releaseNotes>
+    <copyright>Copyright 2019 - Gateway Programming School</copyright>
   </metadata>
   <files>
-    <file src=".\bin\Release\GPS.SimpleThreading.*" target="netstandard2.0" exclude="**\*.nupkg" />
+    <file src=".\bin\Release" target="netstandard2.0" exclude="**\*.nupkg" />
   </files>
 </package>

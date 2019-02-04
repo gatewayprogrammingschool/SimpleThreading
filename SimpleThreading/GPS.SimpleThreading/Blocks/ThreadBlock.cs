@@ -9,18 +9,22 @@ namespace GPS.SimpleThreading.Blocks
 {
     public sealed class ThreadBlock<T, TResult>
     {
-        private readonly ConcurrentDictionary<Tuple<T, Task<TResult>>, TResult> _results =
-            new ConcurrentDictionary<Tuple<T, Task<TResult>>, TResult>();
+        private readonly ConcurrentDictionary<T, (T data, TResult result)?> _results =
+            new ConcurrentDictionary<T,  (T data, TResult result)?>();
 
         private readonly ConcurrentBag<T> _baseList =
             new ConcurrentBag<T>();
 
         private bool _locked;
         private readonly Func<T, TResult> _action;
+        private readonly Action<(T data, TResult result)?[]> _continuation;
 
-        public ThreadBlock(Func<T, TResult> action)
+        public ThreadBlock(
+            Func<T, TResult> action,
+            Action<(T data, TResult result)?[]> continuation = null)
         {
             _action = action;
+            _continuation = continuation;
         }
 
         public void Add(T item)
@@ -59,20 +63,28 @@ namespace GPS.SimpleThreading.Blocks
         public void Execute(
             int maxDegreeOfParallelization = -1,
             Action<T> warmupItem = null,
-            Action<Task[]> continuation = null)
+            Action<Task, (T data, TResult result)?> threadContinuation = null)
         {
-            if (maxDegreeOfParallelization == -1) maxDegreeOfParallelization = MaxDegreeOfParallelism;
+            if (maxDegreeOfParallelization == -1)
+            {
+                maxDegreeOfParallelization = MaxDegreeOfParallelism;
+            }
+
             if (maxDegreeOfParallelization < 1)
+            {
                 throw new ArgumentOutOfRangeException(
-                    $"Must supply positive value for either {nameof(maxDegreeOfParallelization)} or this.{nameof(MaxDegreeOfParallelism)}.");
+                    "Must supply positive value for either " +
+                    $"{nameof(maxDegreeOfParallelization)} or " +
+                    $"this.{nameof(MaxDegreeOfParallelism)}.");
+            }
 
             var padLock = new object();
             if (!_locked) throw new NotLockedException();
 
             var queue = new Queue<T>(_baseList);
-            var allTasks = new List<Task>();
+            var allTasks = new Dictionary<T, Task>();
 
-            int[] depth = {0};
+            int[] depth = { 0 };
 
             while (queue.Any())
             {
@@ -81,17 +93,27 @@ namespace GPS.SimpleThreading.Blocks
                 warmupItem?.Invoke(item);
 
                 var task = new Task<TResult>(() => _action(item));
-                
-                task.ContinueWith(r =>
-                {
-                    _results.AddOrUpdate(new Tuple<T,Task<TResult>>(item, r), r.Result, (tuple, result) => r.Result);
-                    lock (padLock)
-                    {
-                        depth[0]--;
-                    }
-                });
 
-                allTasks.Add(task);
+                task
+                    .ContinueWith((resultTask, data) =>
+                        {
+                            var returnValue = ((T, TResult)?)(data, resultTask.Result);
+                            
+                            if (threadContinuation != null)
+                            {
+                                threadContinuation(resultTask, returnValue);
+                            }
+
+                            _results.AddOrUpdate(item, returnValue, (itemData, resultTaskResult) => resultTaskResult);
+
+                            lock (padLock)
+                            {
+                                depth[0]--;
+                            }
+                        }, item);
+
+
+                allTasks.Add(item, task);
             }
 
             foreach (var t in allTasks)
@@ -111,7 +133,7 @@ namespace GPS.SimpleThreading.Blocks
                     }
                 }
 
-                t.Start(TaskScheduler.Default);
+                t.Value.Start(TaskScheduler.Default);
 
                 lock (padLock)
                 {
@@ -121,7 +143,7 @@ namespace GPS.SimpleThreading.Blocks
 
             var dd = 0;
 
-            lock(padLock)
+            lock (padLock)
             {
                 dd = depth[0];
             }
@@ -135,21 +157,21 @@ namespace GPS.SimpleThreading.Blocks
                 }
             }
 
-            continuation?.Invoke(allTasks.ToArray());            
+            _continuation?.Invoke(_results.Values.ToArray());
         }
 
-        public ConcurrentDictionary<T, TResult> Results
+        public ConcurrentDictionary<T, (T data, TResult result)?> Results
         {
             get
             {
-                var results = new ConcurrentDictionary<T, TResult>();
+                var results = new ConcurrentDictionary<T, (T data, TResult result)?>();
 
                 foreach (var key in _results.Keys)
                 {
                     var result = _results[key];
-                    var value = key.Item1;
+                    var value = key;
 
-                    results.AddOrUpdate(value, result, (arg1, result1) => result);
+                    results.AddOrUpdate(value, result, (resultKey, resultValue) => resultValue);
                 }
 
                 return results;

@@ -1,13 +1,7 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26430.14
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".paket", ".paket", "{BD101340-94CC-4EC0-848F-3C9FC065381C}"
-	ProjectSection(SolutionItems) = preProject
-		paket.dependencies = paket.dependencies
-	EndProjectSection
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GPS.SimpleThreading", "GPS.SimpleThreading\GPS.SimpleThreading.csproj", "{1D5EDFA8-3A1A-45B7-A1A0-11214810EC6C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GPS.SimpleThreading.Tests", "GPS.SimpleThreading.Tests\GPS.SimpleThreading.Tests.csproj", "{41A8BA2A-4C65-40BA-8EF9-A9375BF8A3A9}"
