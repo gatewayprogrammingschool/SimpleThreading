@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,64 +7,108 @@ using System.Threading.Tasks;
 
 namespace GPS.SimpleThreading.Blocks
 {
-    public sealed class ThreadBlock<T, TResult>
+    /// <summary>
+    /// Parallel thread block class that provides for
+    /// thread warmup, execution, and continuation.
+    /// </summary>
+    /// <remarks>
+    /// ## Features
+    /// * Allows capture of results of thread executions
+    /// * Allows warmup action per data item before spawning thread
+    /// * Allows continuation action per data item after executing thread
+    /// * Allows continuation of the entire set
+    /// </remarks>
+    public sealed class ThreadBlock<TData, TResult>
     {
-        private readonly ConcurrentDictionary<T, (T data, TResult result)?> _results =
-            new ConcurrentDictionary<T,  (T data, TResult result)?>();
+        private readonly ConcurrentDictionary<TData, (TData data, TResult result)?> _results =
+            new ConcurrentDictionary<TData,  (TData data, TResult result)?>();
 
-        private readonly ConcurrentBag<T> _baseList =
-            new ConcurrentBag<T>();
+        private readonly ConcurrentBag<TData> _baseList =
+            new ConcurrentBag<TData>();
 
         private bool _locked;
-        private readonly Func<T, TResult> _action;
-        private readonly Action<(T data, TResult result)?[]> _continuation;
+        private readonly Func<TData, TResult> _action;
+        private readonly Action<(TData data, TResult result)?[]> _continuation;
 
+        /// <summary>
+        /// Constructor accepting the action and block continuation.
+        /// </summary>
         public ThreadBlock(
-            Func<T, TResult> action,
-            Action<(T data, TResult result)?[]> continuation = null)
+            Func<TData, TResult> action,
+            Action<(TData data, TResult result)?[]> continuation = null)
         {
             _action = action;
             _continuation = continuation;
         }
 
-        public void Add(T item)
+        /// <summary>
+        /// Add single data item.
+        /// </summary>
+        public void Add(TData item)
         {
-            _baseList.Add(item);
+            if(!_locked) _baseList.Add(item);
         }
 
-        public void AddRange(IEnumerable<T> collection)
-        {
-            Parallel.ForEach(collection, Add);
-        }
-
-        public void AddRange(ICollection<T> collection)
-        {
-            Parallel.ForEach(collection, Add);
-        }
-
-        public void AddRange(IProducerConsumerCollection<T> collection)
+        /// <summary>
+        /// Adds range of data items from an IEnumerable
+        /// </summary>
+        public void AddRange(IEnumerable<TData> collection)
         {
             Parallel.ForEach(collection, Add);
         }
 
+        /// <summary>
+        /// Adds range of data items from an ICollection.
+        /// </summary>
+        public void AddRange(ICollection<TData> collection)
+        {
+            Parallel.ForEach(collection, Add);
+        }
+
+        /// <summary>
+        /// Adds range of data items from an IProducerConsumerCollection.
+        /// </summary>
+        public void AddRange(IProducerConsumerCollection<TData> collection)
+        {
+            Parallel.ForEach(collection, Add);
+        }
+
+        /// <summary>
+        /// Maximum number of concurrent threads (default = 1).
+        /// </summary>
         public int MaxDegreeOfParallelism { get; set; } = 1;
 
-        public bool Remove(T item)
+        /// <summary>
+        /// Removes a data item from the block.
+        /// </summary>
+        public bool Remove(TData item)
         {
-            T itemToRemove;
-            return _baseList.TryTake(out itemToRemove);
+            TData itemToRemove;
+
+            if(!_locked)
+                return _baseList.TryTake(out itemToRemove);
+
+            return false;
         }
 
+        /// <summary>
+        /// Locks the data of the block, allowing processing.
+        /// </summary>
         public void LockList()
         {
             _locked = true;
         }
 
+        /// <summary>
+        /// Executes the action over the set of data.
+        /// </summary>
         public void Execute(
             int maxDegreeOfParallelization = -1,
-            Action<T> warmupItem = null,
-            Action<Task, (T data, TResult result)?> threadContinuation = null)
+            Action<TData> warmupItem = null,
+            Action<Task, (TData data, TResult result)?> threadContinuation = null)
         {
+            if (!_locked) throw new NotLockedException();
+
             if (maxDegreeOfParallelization == -1)
             {
                 maxDegreeOfParallelization = MaxDegreeOfParallelism;
@@ -79,10 +123,8 @@ namespace GPS.SimpleThreading.Blocks
             }
 
             var padLock = new object();
-            if (!_locked) throw new NotLockedException();
-
-            var queue = new Queue<T>(_baseList);
-            var allTasks = new Dictionary<T, Task>();
+            var queue = new Queue<TData>(_baseList);
+            var allTasks = new Dictionary<TData, Task>();
 
             int depth = 0;
 
@@ -94,17 +136,16 @@ namespace GPS.SimpleThreading.Blocks
 
                 var task = new Task<TResult>(() => _action(item));
 
-                task
-                    .ContinueWith((resultTask, data) =>
+                task.ContinueWith((resultTask, data) =>
                         {
-                            var returnValue = ((T, TResult)?)(data, resultTask.Result);
-                            
+                            var returnValue = ((TData, TResult)?)(data, resultTask.Result);
+
                             if (threadContinuation != null)
                             {
                                 threadContinuation(resultTask, returnValue);
                             }
 
-                            _results.AddOrUpdate(item, returnValue, 
+                            _results.AddOrUpdate(item, returnValue,
                                 (itemData, resultTaskResult) => resultTaskResult);
 
                             lock (padLock)
@@ -117,7 +158,7 @@ namespace GPS.SimpleThreading.Blocks
                 allTasks.Add(item, task);
             }
 
-            foreach (var t in allTasks)
+            foreach (var task in allTasks)
             {
                 int d = 0;
                 lock (padLock)
@@ -134,7 +175,7 @@ namespace GPS.SimpleThreading.Blocks
                     }
                 }
 
-                t.Value.Start(TaskScheduler.Default);
+                task.Value.Start(TaskScheduler.Default);
 
                 lock (padLock)
                 {
@@ -161,11 +202,15 @@ namespace GPS.SimpleThreading.Blocks
             _continuation?.Invoke(_results.Values.ToArray());
         }
 
-        public ConcurrentDictionary<T, (T data, TResult result)?> Results
+        /// <summary>
+        /// Point-in-time results providing a stable result set
+        /// for processing results as the block runs.
+        /// </summary>
+        public ConcurrentDictionary<TData, (TData data, TResult result)?> Results
         {
             get
             {
-                var results = new ConcurrentDictionary<T, (T data, TResult result)?>();
+                var results = new ConcurrentDictionary<TData, (TData data, TResult result)?>();
 
                 foreach (var key in _results.Keys)
                 {
