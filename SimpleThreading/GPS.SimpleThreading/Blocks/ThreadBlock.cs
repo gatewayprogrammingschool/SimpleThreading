@@ -84,7 +84,7 @@ namespace GPS.SimpleThreading.Blocks
             var queue = new Queue<T>(_baseList);
             var allTasks = new Dictionary<T, Task>();
 
-            int[] depth = { 0 };
+            int depth = 0;
 
             while (queue.Any())
             {
@@ -104,11 +104,12 @@ namespace GPS.SimpleThreading.Blocks
                                 threadContinuation(resultTask, returnValue);
                             }
 
-                            _results.AddOrUpdate(item, returnValue, (itemData, resultTaskResult) => resultTaskResult);
+                            _results.AddOrUpdate(item, returnValue, 
+                                (itemData, resultTaskResult) => resultTaskResult);
 
                             lock (padLock)
                             {
-                                depth[0]--;
+                                depth--;
                             }
                         }, item);
 
@@ -121,7 +122,7 @@ namespace GPS.SimpleThreading.Blocks
                 int d = 0;
                 lock (padLock)
                 {
-                    d = depth[0];
+                    d = depth;
                 }
 
                 while (d >= maxDegreeOfParallelization)
@@ -129,7 +130,7 @@ namespace GPS.SimpleThreading.Blocks
                     System.Threading.Thread.Sleep(5);
                     lock (padLock)
                     {
-                        d = depth[0];
+                        d = depth;
                     }
                 }
 
@@ -137,7 +138,7 @@ namespace GPS.SimpleThreading.Blocks
 
                 lock (padLock)
                 {
-                    depth[0]++;
+                    depth++;
                 }
             }
 
@@ -145,7 +146,7 @@ namespace GPS.SimpleThreading.Blocks
 
             lock (padLock)
             {
-                dd = depth[0];
+                dd = depth;
             }
 
             while (dd > 0)
@@ -153,7 +154,7 @@ namespace GPS.SimpleThreading.Blocks
                 Thread.Sleep(5);
                 lock (padLock)
                 {
-                    dd = depth[0];
+                    dd = depth;
                 }
             }
 
