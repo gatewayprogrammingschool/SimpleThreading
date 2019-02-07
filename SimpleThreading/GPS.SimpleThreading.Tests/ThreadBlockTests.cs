@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 using GPS.SimpleThreading.Blocks;
@@ -20,97 +21,90 @@ namespace GPS.SimpleThreading.Tests
             _log = log;
         }
 
+        int _continuationCounter = 0;
+        int _processorCounter = 0;
+        private DateTimeOffset _start;
+
         [Fact]
         public void ContrivedTest()
         {
-            string Processor(int data)
-            {
-                System.Threading.Thread.Sleep(data);
-                return $"Waiting {data} miliseconds";
-            }
 
-            void Warmup(int data)
-            {
-                _log.WriteLine($"Contrived Warmup for {data}");
-            }
+        }
 
-            void ThreadBlockContinuation(Task task, (int data, string result)? result)
-            {
-                _log.WriteLine($"Contrived Thread Continuation result: {result.Value.data}, {result.Value.result}");
-            }
+        [Fact]
+        public void Continuous()
+        {
+            _continuationCounter = 0;
+            _processorCounter = 0;
+            _start = DateTimeOffset.Now;
 
-            void PLINQContinuation((int data, string result)? result)
-            {
-                _log.WriteLine($"Contrived Thread Continuation result: {result.Value.data}, {result.Value.result}");
-            }
+            var dataSet = CreateDataSet(100, 200, 500);
 
-            void BlockContinuation(ICollection<(int data, string result)?> results)
-            {
-                _log.WriteLine($"Results count: {results.Count}");
-            }
-
-            var dataSet = new int[500];
-
-            var rand = new System.Random();
-
-            for(int i = 0; i < dataSet.Length; ++i)
-            {
-                dataSet[i] = rand.Next(250, 2500);
-            }
-
-            var block = new ThreadBlock<int, string>(
+            var block = new ThreadBlock<int?, string>(
                 Processor,
                 BlockContinuation);
 
             block.AddRange(dataSet);
 
-            block.LockList();
+            var parallelism = 16;
 
-            var parallelism = 8;
+            var token = new CancellationTokenSource();
 
-            var sw = new System.Diagnostics.Stopwatch();
-            sw.Start();
+            var task = block.ExecuteContinuous(token, parallelism, Warmup, ThreadContinuation);
 
-            block.Execute(parallelism, Warmup, ThreadBlockContinuation);
+            System.Threading.Thread.Sleep(60000);
 
-            sw.Stop();
-            var blockElapsed = sw.Elapsed;
+            block.AddRange(dataSet);
 
-            sw = new System.Diagnostics.Stopwatch();
+            task.Wait(new TimeSpan(0, 1, 0));
 
-            sw.Start();
-            
-            var resultSet = dataSet
-                .Select(data => { Warmup(data); return data; })
-                .AsParallel()
-                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
-                .WithDegreeOfParallelism(parallelism)
-                .Select(data => 
-                {
-                        return new Nullable<(int data, string result)>
-                            ((data: data, result: Processor(data)));
-                })
-                .AsSequential()
-                .Select(result => {
-                    PLINQContinuation(result);
-                    return result;
-                }).ToList();
-
-            BlockContinuation(resultSet.ToArray());
-
-            sw.Stop();
-            var plinqElapsed = sw.Elapsed;
-
-            _log.WriteLine(
-                $"block: {blockElapsed.TotalSeconds}, " + 
-                $"PLINQ: {plinqElapsed.TotalSeconds}");
-
-            Assert.Equal(dataSet.Length, block.Results.Count);
-            Assert.Equal(dataSet.Length, resultSet.Count);
-
-            // This is here to force the test to fail
-            // allowing dotnet test to output the log.
-            Assert.Equal(blockElapsed, plinqElapsed);
+            Assert.Equal(dataSet.Length * 2, block.Results.Count);
         }
+
+        public int?[] CreateDataSet(int size = 500, int min = 250, int max = 2500)
+        {
+            var dataSet = new int?[size];
+
+            var rand = new System.Random();
+
+            for (int i = 0; i < dataSet.Length; ++i)
+            {
+                dataSet[i] = rand.Next(min, max);
+            }
+
+            return dataSet;
+        }
+
+        string Processor(int? data)
+        {
+            int counter;
+            
+            lock(_log) counter = _processorCounter++;
+
+            System.Threading.Thread.Sleep(data.Value);
+
+            var result = $"{counter} - Waited {data} milliseconds";
+            return result;
+        }
+
+        void Warmup(int? data)
+        {
+            _log.WriteLine($"Contrived Warmup for {data}");
+        }
+
+        void ThreadContinuation(Task task, (int? data, string result)? result)
+        {
+            int counter;
+            
+            lock(_log) counter = _continuationCounter++;
+
+            _log.WriteLine($"[{DateTimeOffset.Now - _start}] {counter} - Contrived Thread Continuation result: {result.Value.data}, {result.Value.result}");
+        }
+
+        void BlockContinuation(ICollection<(int? data, string result)?> results)
+        {
+            _log.WriteLine($"Results count: {results.Count}");
+        }
+
     }
 }

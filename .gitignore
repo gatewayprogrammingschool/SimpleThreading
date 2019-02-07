@@ -47,6 +47,7 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 **/Properties/launchSettings.json
+**/System.*
 
 *_i.c
 *_p.c
@@ -289,3 +290,4 @@ __pycache__/
 paket.exe
 .vscode/tasks.json
 .vscode/launch.json
+/SimpleThreading/Assets

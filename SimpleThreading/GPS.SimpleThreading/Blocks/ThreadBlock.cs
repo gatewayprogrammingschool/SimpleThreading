@@ -20,25 +20,25 @@ namespace GPS.SimpleThreading.Blocks
     /// </remarks>
     public sealed class ThreadBlock<TData, TResult>
     {
-        private readonly ConcurrentDictionary<TData, (TData data, TResult result)?> _results =
-            new ConcurrentDictionary<TData, (TData data, TResult result)?>();
+        private readonly ConcurrentDictionary<Task, (TData data, TResult result)?> _results =
+            new ConcurrentDictionary<Task, (TData data, TResult result)?>();
 
-        private readonly ConcurrentBag<TData> _baseList =
-            new ConcurrentBag<TData>();
+        private readonly ConcurrentQueue<TData> _baseQueue =
+            new ConcurrentQueue<TData>();
 
         private bool _locked;
-        private readonly Func<TData, TResult> _action;
-        private readonly Action<ICollection<(TData data, TResult result)?>> _continuation;
+        private readonly Func<TData, TResult> _threadProcessor;
+        private readonly Action<ICollection<(TData data, TResult result)?>> _blockContinuation;
 
         /// <summary>
         /// Constructor accepting the action and block continuation.
         /// </summary>
         public ThreadBlock(
-            Func<TData, TResult> action,
-            Action<ICollection<(TData data, TResult result)?>> continuation = null)
+            Func<TData, TResult> threadProcessor,
+            Action<ICollection<(TData data, TResult result)?>> blockContinuation = null)
         {
-            _action = action;
-            _continuation = continuation;
+            _threadProcessor = threadProcessor;
+            _blockContinuation = blockContinuation;
         }
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public void Add(TData item)
         {
-            if (!_locked) _baseList.Add(item);
+            if (!_locked) _baseQueue.Enqueue(item);
         }
 
         /// <summary>
@@ -78,18 +78,18 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public int MaxDegreeOfParallelism { get; set; } = 1;
 
-        /// <summary>
-        /// Removes a data item from the block.
-        /// </summary>
-        public bool Remove(TData item)
-        {
-            TData itemToRemove;
+        // /// <summary>
+        // /// Removes a data item from the block.
+        // /// </summary>
+        // public bool Remove(TData item)
+        // {
+        //     TData itemToRemove;
 
-            if (!_locked)
-                return _baseList.TryTake(out itemToRemove);
+        //     if (!_locked)
+        //         return _baseQueue.(out itemToRemove);
 
-            return false;
-        }
+        //     return false;
+        // }
 
         /// <summary>
         /// Locks the data of the block, allowing processing.
@@ -100,111 +100,255 @@ namespace GPS.SimpleThreading.Blocks
         }
 
         /// <summary>
+        /// Clears the remaining items from the Queue
+        /// </summary>
+        public void ClearList()
+        {
+            if (!_locked)
+            {
+                while (_baseQueue.Any())
+                {
+                    _baseQueue.TryDequeue(out TData output);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Begins execution asynchronously, allowing for 
+        /// more data to be added.
+        /// </summary>
+        /// <param name="cancel"></param>
+        /// <param name="maxDegreeOfParallelism"></param>
+        /// <param name="warmupItem"></param>
+        /// <param name="Action<Task"></param>
+        /// <param name="data"></param>
+        /// <param name="result"></param>
+        /// <returns></returns>
+        public Task ExecuteContinuous(
+            CancellationTokenSource cancel,
+            int maxDegreeOfParallelism = -1,
+            Action<TData> warmupItem = null,
+            Action<Task, (TData data, TResult result)?> threadContinuation = null
+        )
+        {
+            var task = new TaskFactory().StartNew(() =>
+                Execute(cancel,
+                        maxDegreeOfParallelism,
+                        warmupItem,
+                        threadContinuation,
+                        false));
+
+            return task;
+        }
+
+        /// <summary>
+        /// Begins execution asynchronously, allowing for 
+        /// more data to be added.
+        /// </summary>
+        /// <param name="maxDegreeOfParallelism"></param>
+        /// <param name="warmupItem"></param>
+        /// <param name="Action<Task"></param>
+        /// <param name="data"></param>
+        /// <param name="result"></param>
+        /// <returns></returns>
+        public Task ExecuteContinuous(
+            int maxDegreeOfParallelism = -1,
+            Action<TData> warmupItem = null,
+            Action<Task, (TData data, TResult result)?> threadContinuation = null
+        )
+        {
+            var task = new TaskFactory().StartNew(() =>
+                Execute(new CancellationTokenSource(),
+                        maxDegreeOfParallelism,
+                        warmupItem,
+                        threadContinuation,
+                        false));
+
+            return task;
+        }
+
+        /// <summary>
+        /// Execution without a Cancellation Token
+        /// </summary>
+        /// <param name="maxDegreeOfParallelism"></param>
+        /// <param name="warmupItem"></param>
+        /// <param name="Action<Task"></param>
+        /// <param name="data"></param>
+        /// <param name="result"></param>
+        public void Execute(
+            int maxDegreeOfParallelism = -1,
+            Action<TData> warmupItem = null,
+            Action<Task, (TData data, TResult result)?> threadContinuation = null,
+            bool requireLock = true
+        )
+        {
+            Execute(new CancellationTokenSource(),
+                maxDegreeOfParallelism,
+                warmupItem,
+                threadContinuation,
+                requireLock);
+        }
+
+        /// <summary>
         /// Executes the action over the set of data.
         /// </summary>
+        /// <param name="cancel"></param>
+        /// <param name="maxDegreeOfParallelism"></param>
+        /// <param name="warmupItem"></param>
+        /// <param name="Action<Task"></param>
+        /// <param name="data"></param>
+        /// <param name="result"></param>
         public void Execute(
-            int maxDegreeOfParallelization = -1,
+            CancellationTokenSource cancel,
+            int maxDegreeOfParallelism = -1,
             Action<TData> warmupItem = null,
-            Action<Task, (TData data, TResult result)?> threadContinuation = null)
+            Action<Task, (TData data, TResult result)?> threadContinuation = null,
+            bool requireLock = true)
         {
-            if (!_locked) throw new NotLockedException();
-
-            if (maxDegreeOfParallelization == -1)
+            if (!_locked && (requireLock && _locked))
             {
-                maxDegreeOfParallelization = MaxDegreeOfParallelism;
+                throw new NotLockedException();
             }
 
-            if (maxDegreeOfParallelization < 1)
+            if (maxDegreeOfParallelism == -1)
+            {
+                maxDegreeOfParallelism = MaxDegreeOfParallelism;
+            }
+
+            if (maxDegreeOfParallelism < 1)
             {
                 throw new ArgumentOutOfRangeException(
                     "Must supply positive value for either " +
-                    $"{nameof(maxDegreeOfParallelization)} or " +
+                    $"{nameof(maxDegreeOfParallelism)} or " +
                     $"this.{nameof(MaxDegreeOfParallelism)}.");
             }
 
             var padLock = new object();
-            var queue = new Queue<TData>(_baseList);
             var allTasks = new Dictionary<TData, Task>();
 
             int depth = 0;
 
-            while (queue.Count > 0)
+            var continueOn = true;
+
+            while (continueOn)
             {
-                var item = queue.Dequeue();
-
-                if (warmupItem != null) warmupItem(item);
-
-                var task = new Task<TResult>(() => _action(item));
-
-                task.ContinueWith((resultTask, data) =>
+                if (cancel.IsCancellationRequested)
                 {
-                    var returnValue = ((TData, TResult)?)(data, resultTask.Result);
-
-                    if (threadContinuation != null)
-                    {
-                        threadContinuation(resultTask, returnValue);
-                    }
-
-                    _results.AddOrUpdate(item, returnValue,
-                        (itemData, resultTaskResult) => resultTaskResult);
-
-                    lock (padLock)
-                    {
-                        depth--;
-                    }
-                }, item);
-
-                int d = 0;
-                lock (padLock)
-                {
-                    d = depth;
+                    continueOn = false;
+                    break;
                 }
 
-                while (d >= maxDegreeOfParallelization)
+                while (continueOn && _baseQueue.Count == 0)
                 {
                     System.Threading.Thread.Sleep(1);
+
+                    if (cancel.IsCancellationRequested)
+                    {
+                        continueOn = false;
+                        break;
+                    }
+                }
+
+                while (continueOn && _baseQueue.Count > 0)
+                {
+                    if (cancel.IsCancellationRequested)
+                    {
+                        continueOn = false;
+                        break;
+                    }
+
+                    _baseQueue.TryDequeue(out TData item);
+
+                    if (warmupItem != null) warmupItem(item);
+
+                    var task = new Task<TResult>(() => _threadProcessor(item));
+
+                    task.ContinueWith((resultTask, data) =>
+                    {
+                        if (!resultTask.IsCanceled)
+                        {
+                            var returnValue = ((TData, TResult)?)(data, resultTask.Result);
+
+                            _results.AddOrUpdate(resultTask, returnValue,
+                                (itemData, resultTaskResult) => resultTaskResult);
+
+                            threadContinuation?.Invoke(resultTask, returnValue);
+                        }
+                        lock (padLock)
+                        {
+                            depth--;
+                        }
+                    }, item);
+
+                    int d = 0;
                     lock (padLock)
                     {
                         d = depth;
                     }
-                }
 
-                task.Start(TaskScheduler.Current);
+                    while (d >= maxDegreeOfParallelism)
+                    {
+                        if (cancel.IsCancellationRequested)
+                        {
+                            continueOn = false;
+                            break;
+                        }
 
-                lock (padLock)
-                {
-                    depth++;
+                        System.Threading.Thread.Sleep(1);
+                        lock (padLock)
+                        {
+                            d = depth;
+                        }
+                    }
+
+                    if (continueOn)
+                    {
+                        task.Start(TaskScheduler.Current);
+
+                        lock (padLock)
+                        {
+                            depth++;
+                        }
+                    }
                 }
             }
 
-            var dd = 0;
-
-            lock (padLock)
+            if (!cancel.IsCancellationRequested)
             {
-                dd = depth;
-            }
+                var dd = 0;
 
-            while (dd > 0)
-            {
-                Thread.Sleep(1);
                 lock (padLock)
                 {
                     dd = depth;
                 }
+
+                while (dd > 0)
+                {
+                    if (cancel.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    Thread.Sleep(1);
+                    lock (padLock)
+                    {
+                        dd = depth;
+                    }
+                }
             }
 
-            _continuation?.Invoke(_results.Values);
+            _blockContinuation?.Invoke(_results.Values);
         }
 
         /// <summary>
         /// Point-in-time results providing a stable result set
         /// for processing results as the block runs.
         /// </summary>
-        public ConcurrentDictionary<TData, (TData data, TResult result)?> Results
+        public ConcurrentDictionary<Task, (TData data, TResult result)?> Results
         {
             get
             {
-                var results = new ConcurrentDictionary<TData, (TData data, TResult result)?>();
+                var results = new ConcurrentDictionary<Task, (TData data, TResult result)?>();
 
                 foreach (var key in _results.Keys)
                 {
