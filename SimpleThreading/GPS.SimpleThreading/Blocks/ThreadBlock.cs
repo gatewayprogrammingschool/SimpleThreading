@@ -21,21 +21,21 @@ namespace GPS.SimpleThreading.Blocks
     public sealed class ThreadBlock<TData, TResult>
     {
         private readonly ConcurrentDictionary<TData, (TData data, TResult result)?> _results =
-            new ConcurrentDictionary<TData,  (TData data, TResult result)?>();
+            new ConcurrentDictionary<TData, (TData data, TResult result)?>();
 
         private readonly ConcurrentBag<TData> _baseList =
             new ConcurrentBag<TData>();
 
         private bool _locked;
         private readonly Func<TData, TResult> _action;
-        private readonly Action<(TData data, TResult result)?[]> _continuation;
+        private readonly Action<ICollection<(TData data, TResult result)?>> _continuation;
 
         /// <summary>
         /// Constructor accepting the action and block continuation.
         /// </summary>
         public ThreadBlock(
             Func<TData, TResult> action,
-            Action<(TData data, TResult result)?[]> continuation = null)
+            Action<ICollection<(TData data, TResult result)?>> continuation = null)
         {
             _action = action;
             _continuation = continuation;
@@ -46,7 +46,7 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public void Add(TData item)
         {
-            if(!_locked) _baseList.Add(item);
+            if (!_locked) _baseList.Add(item);
         }
 
         /// <summary>
@@ -85,7 +85,7 @@ namespace GPS.SimpleThreading.Blocks
         {
             TData itemToRemove;
 
-            if(!_locked)
+            if (!_locked)
                 return _baseList.TryTake(out itemToRemove);
 
             return false;
@@ -128,38 +128,32 @@ namespace GPS.SimpleThreading.Blocks
 
             int depth = 0;
 
-            while (queue.Any())
+            while (queue.Count > 0)
             {
                 var item = queue.Dequeue();
 
-                warmupItem?.Invoke(item);
+                if (warmupItem != null) warmupItem(item);
 
                 var task = new Task<TResult>(() => _action(item));
 
                 task.ContinueWith((resultTask, data) =>
-                        {
-                            var returnValue = ((TData, TResult)?)(data, resultTask.Result);
+                {
+                    var returnValue = ((TData, TResult)?)(data, resultTask.Result);
 
-                            if (threadContinuation != null)
-                            {
-                                threadContinuation(resultTask, returnValue);
-                            }
+                    if (threadContinuation != null)
+                    {
+                        threadContinuation(resultTask, returnValue);
+                    }
 
-                            _results.AddOrUpdate(item, returnValue,
-                                (itemData, resultTaskResult) => resultTaskResult);
+                    _results.AddOrUpdate(item, returnValue,
+                        (itemData, resultTaskResult) => resultTaskResult);
 
-                            lock (padLock)
-                            {
-                                depth--;
-                            }
-                        }, item);
+                    lock (padLock)
+                    {
+                        depth--;
+                    }
+                }, item);
 
-
-                allTasks.Add(item, task);
-            }
-
-            foreach (var task in allTasks)
-            {
                 int d = 0;
                 lock (padLock)
                 {
@@ -168,14 +162,14 @@ namespace GPS.SimpleThreading.Blocks
 
                 while (d >= maxDegreeOfParallelization)
                 {
-                    System.Threading.Thread.Sleep(5);
+                    System.Threading.Thread.Sleep(1);
                     lock (padLock)
                     {
                         d = depth;
                     }
                 }
 
-                task.Value.Start(TaskScheduler.Default);
+                task.Start(TaskScheduler.Current);
 
                 lock (padLock)
                 {
@@ -192,14 +186,14 @@ namespace GPS.SimpleThreading.Blocks
 
             while (dd > 0)
             {
-                Thread.Sleep(5);
+                Thread.Sleep(1);
                 lock (padLock)
                 {
                     dd = depth;
                 }
             }
 
-            _continuation?.Invoke(_results.Values.ToArray());
+            _continuation?.Invoke(_results.Values);
         }
 
         /// <summary>

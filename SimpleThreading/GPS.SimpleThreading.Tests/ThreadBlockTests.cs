@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Linq;
@@ -20,55 +21,96 @@ namespace GPS.SimpleThreading.Tests
         }
 
         [Fact]
-        public void ExecuteThreadBlock()
+        public void ContrivedTest()
         {
-            var block = new ThreadBlock<string, int>(
-                s =>
-                {
-                    var result = 0;
-                    if (int.TryParse(s, out result))
-                    {
-                        return result;
-                    }
+            string Processor(int data)
+            {
+                System.Threading.Thread.Sleep(data);
+                return $"Waiting {data} miliseconds";
+            }
 
-                    return 0;
-                },
-                r =>
-                {
-                    Assert.NotEmpty(r);
-                    Assert.Equal(10, r.Length);
-                });
+            void Warmup(int data)
+            {
+                _log.WriteLine($"Contrived Warmup for {data}");
+            }
 
-            block.AddRange(new string[] { "1", "2", "3", "42", "5", "-6", "7", "8", "11", "10" });
+            void ThreadBlockContinuation(Task task, (int data, string result)? result)
+            {
+                _log.WriteLine($"Contrived Thread Continuation result: {result.Value.data}, {result.Value.result}");
+            }
+
+            void PLINQContinuation((int data, string result)? result)
+            {
+                _log.WriteLine($"Contrived Thread Continuation result: {result.Value.data}, {result.Value.result}");
+            }
+
+            void BlockContinuation(ICollection<(int data, string result)?> results)
+            {
+                _log.WriteLine($"Results count: {results.Count}");
+            }
+
+            var dataSet = new int[500];
+
+            var rand = new System.Random();
+
+            for(int i = 0; i < dataSet.Length; ++i)
+            {
+                dataSet[i] = rand.Next(250, 2500);
+            }
+
+            var block = new ThreadBlock<int, string>(
+                Processor,
+                BlockContinuation);
+
+            block.AddRange(dataSet);
 
             block.LockList();
 
-            var results = new ConcurrentBag<(string, int)?>();
+            var parallelism = 8;
 
-            block.Execute(5, null,
-            (item, result) =>
-            {
-                result.AssertParameterNotNull("Result should never be null.", nameof(result));
+            var sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
 
-                _log.WriteLine($"{(result.Value.data ?? "null")} - {(result.Value.result)}");
-                
-                results.Add(result);
+            block.Execute(parallelism, Warmup, ThreadBlockContinuation);
 
-                var parsed = 0;
-                if (int.TryParse(result.Value.data, out parsed))
+            sw.Stop();
+            var blockElapsed = sw.Elapsed;
+
+            sw = new System.Diagnostics.Stopwatch();
+
+            sw.Start();
+            
+            var resultSet = dataSet
+                .Select(data => { Warmup(data); return data; })
+                .AsParallel()
+                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
+                .WithDegreeOfParallelism(parallelism)
+                .Select(data => 
                 {
-                    Xunit.Assert.Equal(result.Value.result, parsed);
-                }
-                else
-                {
-                    throw new InvalidOperationException(
-                        $"{result.Value.data} does not parse to {result.Value.result}");
-                }
-            });
+                        return new Nullable<(int data, string result)>
+                            ((data: data, result: Processor(data)));
+                })
+                .AsSequential()
+                .Select(result => {
+                    PLINQContinuation(result);
+                    return result;
+                }).ToList();
 
-            _log.WriteLine($"Results Count: {results.Count}");
-            Xunit.Assert.NotEmpty(results);
-            Xunit.Assert.Equal(10, results.Count);
+            BlockContinuation(resultSet.ToArray());
+
+            sw.Stop();
+            var plinqElapsed = sw.Elapsed;
+
+            _log.WriteLine(
+                $"block: {blockElapsed.TotalSeconds}, " + 
+                $"PLINQ: {plinqElapsed.TotalSeconds}");
+
+            Assert.Equal(dataSet.Length, block.Results.Count);
+            Assert.Equal(dataSet.Length, resultSet.Count);
+
+            // This is here to force the test to fail
+            // allowing dotnet test to output the log.
+            Assert.Equal(blockElapsed, plinqElapsed);
         }
     }
 }
