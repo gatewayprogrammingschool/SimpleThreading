@@ -7,6 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="System.Linq.4.3.0\**" />
+    <Compile Remove="System.Runtime.Extensions.4.3.0\**" />
+    <EmbeddedResource Remove="System.Linq.4.3.0\**" />
+    <EmbeddedResource Remove="System.Runtime.Extensions.4.3.0\**" />
+    <None Remove="System.Linq.4.3.0\**" />
+    <None Remove="System.Runtime.Extensions.4.3.0\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="GPS.SimpleExtensions" Version="2.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
     <PackageReference Include="System.Runtime.Extensions" Version="4.3.0" />

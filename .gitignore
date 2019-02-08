@@ -291,3 +291,6 @@ paket.exe
 .vscode/tasks.json
 .vscode/launch.json
 /SimpleThreading/Assets
+SimpleThreading/GPS.SimpleThreading.Tests/System.Runtime.Extensions.*/**
+SimpleThreading/GPS.SimpleThreading.Tests/System.Linq.*/**
+SimpleThreading/GPS.SimpleThreading.Tests/System.Runtime.Extensions.*/**
