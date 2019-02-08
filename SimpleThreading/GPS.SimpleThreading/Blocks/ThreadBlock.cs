@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using GPS.SimpleThreading.Exceptions;
+
 namespace GPS.SimpleThreading.Blocks
 {
     /// <summary>
@@ -18,41 +20,51 @@ namespace GPS.SimpleThreading.Blocks
     /// * Allows continuation action per data item after executing thread
     /// * Allows continuation of the entire set
     /// </remarks>
-    public sealed class ThreadBlock<TData, TResult>
+    public sealed partial class ThreadBlock<TDataItem, TResult>
     {
-        private readonly ConcurrentDictionary<Task, (TData data, TResult result)?> _results =
-            new ConcurrentDictionary<Task, (TData data, TResult result)?>();
+        private readonly ConcurrentBag<DataResultPair> _results =
+            new ConcurrentBag<DataResultPair>();
 
-        private readonly ConcurrentQueue<TData> _baseQueue =
-            new ConcurrentQueue<TData>();
+        private readonly ConcurrentQueue<TDataItem> _dataQueue =
+            new ConcurrentQueue<TDataItem>();
 
         private bool _locked;
-        private readonly Func<TData, TResult> _threadProcessor;
-        private readonly Action<ICollection<(TData data, TResult result)?>> _blockContinuation;
+        private readonly Func<TDataItem, TResult> _threadProcessor;
+
+        private CancellationTokenSource _tokenSource = new CancellationTokenSource();
 
         /// <summary>
         /// Constructor accepting the action and block continuation.
         /// </summary>
         public ThreadBlock(
-            Func<TData, TResult> threadProcessor,
-            Action<ICollection<(TData data, TResult result)?>> blockContinuation = null)
+            Func<TDataItem, TResult> threadProcessor)
         {
             _threadProcessor = threadProcessor;
-            _blockContinuation = blockContinuation;
+        }
+
+        /// <summary>
+        ///  Signals the cancellation token source to cancel the batch.
+        /// </summary>
+        public void Stop()
+        {
+            if (_tokenSource != null && _tokenSource.Token.CanBeCanceled)
+            {
+                _tokenSource.Cancel();
+            }
         }
 
         /// <summary>
         /// Add single data item.
         /// </summary>
-        public void Add(TData item)
+        public void Add(TDataItem item)
         {
-            if (!_locked) _baseQueue.Enqueue(item);
+            if (!_locked) _dataQueue.Enqueue(item);
         }
 
         /// <summary>
         /// Adds range of data items from an IEnumerable
         /// </summary>
-        public void AddRange(IEnumerable<TData> collection)
+        public void AddRange(IEnumerable<TDataItem> collection)
         {
             Parallel.ForEach(collection, Add);
         }
@@ -60,7 +72,7 @@ namespace GPS.SimpleThreading.Blocks
         /// <summary>
         /// Adds range of data items from an ICollection.
         /// </summary>
-        public void AddRange(ICollection<TData> collection)
+        public void AddRange(ICollection<TDataItem> collection)
         {
             Parallel.ForEach(collection, Add);
         }
@@ -68,7 +80,7 @@ namespace GPS.SimpleThreading.Blocks
         /// <summary>
         /// Adds range of data items from an IProducerConsumerCollection.
         /// </summary>
-        public void AddRange(IProducerConsumerCollection<TData> collection)
+        public void AddRange(IProducerConsumerCollection<TDataItem> collection)
         {
             Parallel.ForEach(collection, Add);
         }
@@ -77,19 +89,6 @@ namespace GPS.SimpleThreading.Blocks
         /// Maximum number of concurrent threads (default = 1).
         /// </summary>
         public int MaxDegreeOfParallelism { get; set; } = 1;
-
-        // /// <summary>
-        // /// Removes a data item from the block.
-        // /// </summary>
-        // public bool Remove(TData item)
-        // {
-        //     TData itemToRemove;
-
-        //     if (!_locked)
-        //         return _baseQueue.(out itemToRemove);
-
-        //     return false;
-        // }
 
         /// <summary>
         /// Locks the data of the block, allowing processing.
@@ -106,18 +105,20 @@ namespace GPS.SimpleThreading.Blocks
         {
             if (!_locked)
             {
-                while (_baseQueue.Any())
+                while (_dataQueue.Any())
                 {
-                    _baseQueue.TryDequeue(out TData output);
+                    _dataQueue.TryDequeue(out TDataItem output);
                 }
             }
         }
+
+        private bool _continuous = false;
 
         /// <summary>
         /// Begins execution asynchronously, allowing for 
         /// more data to be added.
         /// </summary>
-        /// <param name="cancel"></param>
+        /// <param name="cancelTokenSource"></param>
         /// <param name="maxDegreeOfParallelism"></param>
         /// <param name="warmupItem"></param>
         /// <param name="Action<Task"></param>
@@ -125,17 +126,14 @@ namespace GPS.SimpleThreading.Blocks
         /// <param name="result"></param>
         /// <returns></returns>
         public Task ExecuteContinuous(
-            CancellationTokenSource cancel,
-            int maxDegreeOfParallelism = -1,
-            Action<TData> warmupItem = null,
-            Action<Task, (TData data, TResult result)?> threadContinuation = null
+            CancellationTokenSource cancelTokenSource,
+            int maxDegreeOfParallelism = -1
         )
         {
+            _continuous = true;
             var task = new TaskFactory().StartNew(() =>
-                Execute(cancel,
+                Executor(cancelTokenSource,
                         maxDegreeOfParallelism,
-                        warmupItem,
-                        threadContinuation,
                         false));
 
             return task;
@@ -152,16 +150,13 @@ namespace GPS.SimpleThreading.Blocks
         /// <param name="result"></param>
         /// <returns></returns>
         public Task ExecuteContinuous(
-            int maxDegreeOfParallelism = -1,
-            Action<TData> warmupItem = null,
-            Action<Task, (TData data, TResult result)?> threadContinuation = null
+            int maxDegreeOfParallelism = -1
         )
         {
+            _continuous = true;
             var task = new TaskFactory().StartNew(() =>
-                Execute(new CancellationTokenSource(),
+                Executor(new CancellationTokenSource(),
                         maxDegreeOfParallelism,
-                        warmupItem,
-                        threadContinuation,
                         false));
 
             return task;
@@ -177,37 +172,57 @@ namespace GPS.SimpleThreading.Blocks
         /// <param name="result"></param>
         public void Execute(
             int maxDegreeOfParallelism = -1,
-            Action<TData> warmupItem = null,
-            Action<Task, (TData data, TResult result)?> threadContinuation = null,
             bool requireLock = true
         )
         {
-            Execute(new CancellationTokenSource(),
+            _continuous = false;
+            Executor(new CancellationTokenSource(),
                 maxDegreeOfParallelism,
-                warmupItem,
-                threadContinuation,
                 requireLock);
         }
 
         /// <summary>
         /// Executes the action over the set of data.
         /// </summary>
-        /// <param name="cancel"></param>
+        /// <param name="cancelTokenSource"></param>
         /// <param name="maxDegreeOfParallelism"></param>
         /// <param name="warmupItem"></param>
         /// <param name="Action<Task"></param>
         /// <param name="data"></param>
         /// <param name="result"></param>
         public void Execute(
-            CancellationTokenSource cancel,
+            CancellationTokenSource cancelTokenSource,
             int maxDegreeOfParallelism = -1,
-            Action<TData> warmupItem = null,
-            Action<Task, (TData data, TResult result)?> threadContinuation = null,
             bool requireLock = true)
         {
-            if (!_locked && (requireLock && _locked))
+            _continuous = false;
+
+            Executor(
+                cancelTokenSource,
+                maxDegreeOfParallelism,
+                requireLock
+            );
+        }
+
+        public bool IsRunning { get; private set; }
+
+        private void Executor(CancellationTokenSource cancelTokenSource,
+            int maxDegreeOfParallelism = -1,
+            bool requireLock = true)
+        {
+            if (IsRunning)
+            {
+                throw new AlreadyRunningException();
+            }
+
+            if (!_locked && requireLock)
             {
                 throw new NotLockedException();
+            }
+
+            if (cancelTokenSource != null)
+            {
+                _tokenSource = cancelTokenSource;
             }
 
             if (maxDegreeOfParallelism == -1)
@@ -224,42 +239,40 @@ namespace GPS.SimpleThreading.Blocks
             }
 
             var padLock = new object();
-            var allTasks = new Dictionary<TData, Task>();
+            var allTasks = new Dictionary<TDataItem, Task>();
 
             int depth = 0;
 
             var continueOn = true;
 
-            while (continueOn)
+            while (continueOn && !_tokenSource.IsCancellationRequested)
             {
-                if (cancel.IsCancellationRequested)
+                IsRunning = true;
+
+                if (cancelTokenSource.IsCancellationRequested)
                 {
                     continueOn = false;
                     break;
                 }
 
-                while (continueOn && _baseQueue.Count == 0)
+                while (continueOn && _dataQueue.Count == 0
+                    && !cancelTokenSource.IsCancellationRequested)
                 {
                     System.Threading.Thread.Sleep(1);
-
-                    if (cancel.IsCancellationRequested)
-                    {
-                        continueOn = false;
-                        break;
-                    }
                 }
 
-                while (continueOn && _baseQueue.Count > 0)
+                if (cancelTokenSource.IsCancellationRequested)
                 {
-                    if (cancel.IsCancellationRequested)
-                    {
-                        continueOn = false;
-                        break;
-                    }
+                    continueOn = false;
+                    break;
+                }
 
-                    _baseQueue.TryDequeue(out TData item);
+                while (continueOn && _dataQueue.Count > 0
+                    && !cancelTokenSource.IsCancellationRequested)
+                {
+                    _dataQueue.TryDequeue(out TDataItem item);
 
-                    if (warmupItem != null) warmupItem(item);
+                    DataWarmup?.Invoke(item);
 
                     var task = new Task<TResult>(() => _threadProcessor(item));
 
@@ -267,12 +280,11 @@ namespace GPS.SimpleThreading.Blocks
                     {
                         if (!resultTask.IsCanceled)
                         {
-                            var returnValue = ((TData, TResult)?)(data, resultTask.Result);
+                            var returnValue = new DataResultPair(resultTask, (TDataItem)data, resultTask.Result);
 
-                            _results.AddOrUpdate(resultTask, returnValue,
-                                (itemData, resultTaskResult) => resultTaskResult);
+                            _results.Add(returnValue);
 
-                            threadContinuation?.Invoke(resultTask, returnValue);
+                            DataProcessed?.Invoke(returnValue);
                         }
                         lock (padLock)
                         {
@@ -288,7 +300,7 @@ namespace GPS.SimpleThreading.Blocks
 
                     while (d >= maxDegreeOfParallelism)
                     {
-                        if (cancel.IsCancellationRequested)
+                        if (cancelTokenSource.IsCancellationRequested)
                         {
                             continueOn = false;
                             break;
@@ -311,55 +323,103 @@ namespace GPS.SimpleThreading.Blocks
                         }
                     }
                 }
-            }
 
-            if (!cancel.IsCancellationRequested)
-            {
-                var dd = 0;
 
-                lock (padLock)
+                if (!cancelTokenSource.IsCancellationRequested)
                 {
-                    dd = depth;
-                }
+                    var dd = 0;
 
-                while (dd > 0)
-                {
-                    if (cancel.IsCancellationRequested)
-                    {
-                        break;
-                    }
-
-                    Thread.Sleep(1);
                     lock (padLock)
                     {
                         dd = depth;
                     }
+
+                    while (dd > 0)
+                    {
+                        if (cancelTokenSource.IsCancellationRequested)
+                        {
+                            break;
+                        }
+
+                        Thread.Sleep(1);
+                        lock (padLock)
+                        {
+                            dd = depth;
+                        }
+                    }
+
+                    if (!cancelTokenSource.IsCancellationRequested && _continuous)
+                    {
+                        EmptyQueue?.Invoke();
+                    }
                 }
+
+
+                if (_tokenSource.IsCancellationRequested)
+                {
+                    continueOn = false;
+                    BatchCancelled?.Invoke();
+                }
+
+                continueOn = _continuous;
             }
 
-            _blockContinuation?.Invoke(_results.Values);
+            IsRunning = false;
+
+            BatchFinished?.Invoke(Results);
         }
 
         /// <summary>
         /// Point-in-time results providing a stable result set
         /// for processing results as the block runs.
         /// </summary>
-        public ConcurrentDictionary<Task, (TData data, TResult result)?> Results
+        public IEnumerable<DataResultPair> Results
         {
             get
             {
-                var results = new ConcurrentDictionary<Task, (TData data, TResult result)?>();
+                var resultList = _results.ToList();
 
-                foreach (var key in _results.Keys)
+                if(resultList.Any())
                 {
-                    var result = _results[key];
-                    var value = key;
-
-                    results.AddOrUpdate(value, result, (resultKey, resultValue) => resultValue);
+                    foreach(var result in resultList)
+                    {
+                        yield return result;
+                    }
                 }
-
-                return results;
             }
         }
+
+        /// <summary>
+        /// Triggered with the the queue becomes empty.
+        /// </summary>
+        public delegate void EmptyQueueHandler();
+        public event EmptyQueueHandler EmptyQueue;
+
+        /// <summary>
+        /// Triggered when preparing to process the data.
+        /// </summary>
+        /// <param name="data">Data to be prepared.</param>
+        public delegate void DataWarmupHandler(TDataItem data);
+        public event DataWarmupHandler DataWarmup;
+
+        /// <summary>
+        /// Triggered when All data has been processed.
+        /// </summary>
+        /// <param name="resultPair">Processed data.</param>
+        public delegate void DataProcessedHandler(DataResultPair resultPair);
+        public event DataProcessedHandler DataProcessed;
+
+        /// <summary>
+        /// Triggered when the cancellation token is triggered.
+        /// </summary>
+        public delegate void BatchCancelledHandler();
+        public event BatchCancelledHandler BatchCancelled;
+
+        /// <summary>
+        /// Triggered when the batch has finished.
+        /// </summary>
+        /// <param name="results">Enumerable of the results.</param>
+        public delegate void BatchFinishedHandler(IEnumerable<DataResultPair> results);
+        public event BatchFinishedHandler BatchFinished;
     }
 }

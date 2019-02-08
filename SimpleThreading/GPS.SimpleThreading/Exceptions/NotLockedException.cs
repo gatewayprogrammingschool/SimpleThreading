@@ -1,7 +1,8 @@
 ﻿using System;
 
-namespace GPS.SimpleThreading.Blocks
+namespace GPS.SimpleThreading.Exceptions
 {
+    [Serializable]
     public class NotLockedException : Exception
     {
         public NotLockedException()
@@ -22,5 +23,10 @@ namespace GPS.SimpleThreading.Blocks
             : base("ThreadBlock is not locked.", innerException)
         {
         }
+
+        protected NotLockedException(
+            System.Runtime.Serialization.SerializationInfo info,
+            System.Runtime.Serialization.StreamingContext context)
+            : base(info, context) { }
     }
 }

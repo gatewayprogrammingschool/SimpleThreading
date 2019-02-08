@@ -38,27 +38,49 @@ namespace GPS.SimpleThreading.Tests
             _processorCounter = 0;
             _start = DateTimeOffset.Now;
 
-            var dataSet = CreateDataSet(100, 200, 500);
+            var token = new CancellationTokenSource();
+
+            var batchCount = 1;
+            var numberOfBatches = 1;
+
+            var dataSet = CreateDataSet(50, 200, 500);
 
             var block = new ThreadBlock<int?, string>(
-                Processor,
-                BlockContinuation);
+                DataProcessor);
+
+            block.BatchFinished += OnBatchFinished;
+            block.DataProcessed += OnDataProcessed;
+            block.DataWarmup += OnDataWarmup;
+
+            block.BatchCancelled += () =>
+            {
+                _log.WriteLine("Batch successfully cancelled.");
+            };
+
+            block.EmptyQueue += () =>
+            {
+                if (batchCount < numberOfBatches)
+                {
+                    block.AddRange(dataSet);
+                    batchCount++;
+                }
+                else
+                {
+                    block.Stop();
+                }
+            };
 
             block.AddRange(dataSet);
 
             var parallelism = 16;
 
-            var token = new CancellationTokenSource();
+            block.LockList();
 
-            var task = block.ExecuteContinuous(token, parallelism, Warmup, ThreadContinuation);
+            block.Execute(token, parallelism);
 
-            System.Threading.Thread.Sleep(60000);
+            //task.Wait();
 
-            block.AddRange(dataSet);
-
-            task.Wait(new TimeSpan(0, 1, 0));
-
-            Assert.Equal(dataSet.Length * 2, block.Results.Count);
+            Assert.Equal(dataSet.Length * numberOfBatches, block.Results.Count());
         }
 
         public int?[] CreateDataSet(int size = 500, int min = 250, int max = 2500)
@@ -75,11 +97,11 @@ namespace GPS.SimpleThreading.Tests
             return dataSet;
         }
 
-        string Processor(int? data)
+        string DataProcessor(int? data)
         {
             int counter;
-            
-            lock(_log) counter = _processorCounter++;
+
+            lock (_log) counter = _processorCounter++;
 
             System.Threading.Thread.Sleep(data.Value);
 
@@ -87,23 +109,23 @@ namespace GPS.SimpleThreading.Tests
             return result;
         }
 
-        void Warmup(int? data)
+        void OnDataWarmup(int? data)
         {
             _log.WriteLine($"Contrived Warmup for {data}");
         }
 
-        void ThreadContinuation(Task task, (int? data, string result)? result)
+        void OnDataProcessed(ThreadBlock<int?, string>.DataResultPair result)
         {
             int counter;
-            
-            lock(_log) counter = _continuationCounter++;
 
-            _log.WriteLine($"[{DateTimeOffset.Now - _start}] {counter} - Contrived Thread Continuation result: {result.Value.data}, {result.Value.result}");
+            lock (_log) counter = _continuationCounter++;
+
+            _log.WriteLine($"[{DateTimeOffset.Now - _start}] {counter} - Result: {result.Data}, {result.Result}");
         }
 
-        void BlockContinuation(ICollection<(int? data, string result)?> results)
+        void OnBatchFinished(IEnumerable<ThreadBlock<int?, string>.DataResultPair> results)
         {
-            _log.WriteLine($"Results count: {results.Count}");
+            _log.WriteLine($"Results count: {results.Count()}");
         }
 
     }
