@@ -294,3 +294,5 @@ paket.exe
 SimpleThreading/GPS.SimpleThreading.Tests/System.Runtime.Extensions.*/**
 SimpleThreading/GPS.SimpleThreading.Tests/System.Linq.*/**
 SimpleThreading/GPS.SimpleThreading.Tests/System.Runtime.Extensions.*/**
+Microsoft.*/
+
