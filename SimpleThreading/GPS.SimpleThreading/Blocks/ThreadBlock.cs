@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using GPS.SimpleThreading.Exceptions;
+using GPSThreadFactory = GPS.SimpleThreading.Management.ThreadFactory;
 
 namespace GPS.SimpleThreading.Blocks
 {
@@ -88,7 +89,7 @@ namespace GPS.SimpleThreading.Blocks
         /// <summary>
         /// Maximum number of concurrent threads (default = 1).
         /// </summary>
-        public int MaxDegreeOfParallelism { get; set; } = 1;
+        public int MaxDegreeOfParallelism { get; private set; } = 1;
 
         /// <summary>
         /// Locks the data of the block, allowing processing.
@@ -127,14 +128,15 @@ namespace GPS.SimpleThreading.Blocks
         /// <returns></returns>
         public Task ExecuteContinuous(
             CancellationTokenSource cancelTokenSource,
-            int maxDegreeOfParallelism = -1
+            int maxDegreeOfParallelism = -1,
+            int threadTimeout = -1
         )
         {
             _continuous = true;
             var task = new TaskFactory().StartNew(() =>
                 Executor(cancelTokenSource,
                         maxDegreeOfParallelism,
-                        false));
+                        false, threadTimeout));
 
             return task;
         }
@@ -150,14 +152,15 @@ namespace GPS.SimpleThreading.Blocks
         /// <param name="result"></param>
         /// <returns></returns>
         public Task ExecuteContinuous(
-            int maxDegreeOfParallelism = -1
+            int maxDegreeOfParallelism = -1,
+            int threadTimeout = -1
         )
         {
             _continuous = true;
             var task = new TaskFactory().StartNew(() =>
                 Executor(new CancellationTokenSource(),
                         maxDegreeOfParallelism,
-                        false));
+                        false, threadTimeout));
 
             return task;
         }
@@ -172,13 +175,14 @@ namespace GPS.SimpleThreading.Blocks
         /// <param name="result"></param>
         public void Execute(
             int maxDegreeOfParallelism = -1,
-            bool requireLock = true
+            bool requireLock = true,
+            int threadTimeout = -1
         )
         {
             _continuous = false;
             Executor(new CancellationTokenSource(),
                 maxDegreeOfParallelism,
-                requireLock);
+                requireLock, threadTimeout);
         }
 
         /// <summary>
@@ -193,14 +197,15 @@ namespace GPS.SimpleThreading.Blocks
         public void Execute(
             CancellationTokenSource cancelTokenSource,
             int maxDegreeOfParallelism = -1,
-            bool requireLock = true)
+            bool requireLock = true,
+            int threadTimeout = -1)
         {
             _continuous = false;
 
             Executor(
                 cancelTokenSource,
                 maxDegreeOfParallelism,
-                requireLock
+                requireLock, threadTimeout
             );
         }
 
@@ -208,7 +213,8 @@ namespace GPS.SimpleThreading.Blocks
 
         private void Executor(CancellationTokenSource cancelTokenSource,
             int maxDegreeOfParallelism = -1,
-            bool requireLock = true)
+            bool requireLock = true,
+            int threadTimeout = -1)
         {
             if (IsRunning)
             {
@@ -274,9 +280,13 @@ namespace GPS.SimpleThreading.Blocks
 
                     DataWarmup?.Invoke(item);
 
-                    var task = new Task<TResult>(() => _threadProcessor(item));
+                    var thread = GPSThreadFactory.NewUnScopedFunctionThread<TDataItem, TResult>(
+                        this._threadProcessor, 
+                        apartmentState: ApartmentState.MTA, 
+                        threadName: "Thread Block"
+                    );
 
-                    task.ContinueWith((resultTask, data) =>
+                    thread.Task.ContinueWith((resultTask, data) =>
                     {
                         if (!resultTask.IsCanceled)
                         {
@@ -314,8 +324,8 @@ namespace GPS.SimpleThreading.Blocks
                     }
 
                     if (continueOn)
-                    {
-                        task.Start(TaskScheduler.Current);
+                    {                        
+                        thread.Start(item);
 
                         lock (padLock)
                         {

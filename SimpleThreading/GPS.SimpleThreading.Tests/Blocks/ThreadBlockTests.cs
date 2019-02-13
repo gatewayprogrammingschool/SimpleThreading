@@ -10,7 +10,7 @@ using GPS.SimpleExtensions;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GPS.SimpleThreading.Tests
+namespace GPS.SimpleThreading.Tests.Blocks
 {
     public class ThreadBlockTests
     {
