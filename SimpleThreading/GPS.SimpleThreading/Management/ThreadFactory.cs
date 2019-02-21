@@ -1,13 +1,34 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace GPS.SimpleThreading.Management
 {
-    public static class ThreadFactory
+    public class ThreadFactory
     {
-        private static int threadCounter = 0;
-        public static Thread NewUnScopedThread(
+        ILogger _logger;
+        
+        public ThreadFactory(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public ThreadFactory()
+        {
+            var collection = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+            var loggerFactory = new LoggerFactory();
+
+            collection.AddSingleton<ILoggerFactory>(loggerFactory);
+
+            _logger = collection.BuildServiceProvider()
+                        .GetRequiredService<ILoggerFactory>()
+                        .CreateLogger<ILogger>();
+        }
+
+        private int threadCounter = 0;
+        public Thread NewUnScopedThread(
             ParameterizedThreadStart threadStart,
             ThreadPriority priority = ThreadPriority.Normal,
             ApartmentState apartmentState = ApartmentState.MTA,
@@ -18,10 +39,14 @@ namespace GPS.SimpleThreading.Management
             thread.SetApartmentState(apartmentState);
             thread.Priority = priority;
 
-            return thread;
+            using(var scope = _logger.BeginScope<string>("NewUnScopedThread(ThreadStart)"))
+            {
+                _logger.LogInformation($"Created Thread {thread.Name} - {apartmentState} - {priority}");
+                return thread;
+            }
         }
 
-        public static Thread NewUnScopedThread(
+        public Thread NewUnScopedThread(
             Action action,
             ThreadPriority priority = ThreadPriority.Normal,
             ApartmentState apartmentState = ApartmentState.MTA,
@@ -29,14 +54,21 @@ namespace GPS.SimpleThreading.Management
         {
             var wrapper = new ActionWrapper<object>(action);
 
-            return NewUnScopedThread(
+            var thread = NewUnScopedThread(
                 wrapper.WrappedAction,
                 priority,
                 apartmentState,
                 threadName);
+                
+            using(var scope = _logger.BeginScope<string>("NewUnScopedThread(Action)"))
+            {
+                _logger.LogInformation($"Created Thread {thread.Name} - {apartmentState} - {priority}");
+                return thread;
+            }
+
         }
 
-        public static Thread NewUnScopedThread<T>(
+        public Thread NewUnScopedThread<T>(
             Action<T> action,
             ThreadPriority priority = ThreadPriority.Normal,
             ApartmentState apartmentState = ApartmentState.MTA,
@@ -44,14 +76,21 @@ namespace GPS.SimpleThreading.Management
         {
             var wrapper = new ActionWrapper<T>(action);
 
-            return NewUnScopedThread(
+            var thread = NewUnScopedThread(
                 wrapper.WrappedAction,
                 priority,
                 apartmentState,
                 threadName);
+                                
+            using(var scope = _logger.BeginScope<string>("NewUnScopedThread(Action<T>)"))
+            {
+                _logger.LogInformation($"Created Thread {thread.Name} - {apartmentState} - {priority}");
+                return thread;
+            }
+
         }
 
-        public static FunctionThread<TData, TResult>
+        public FunctionThread<TData, TResult>
             NewUnScopedFunctionThread<TData, TResult>(
                 Func<TData, TResult> function,
                 ThreadPriority priority = ThreadPriority.Normal,
@@ -59,9 +98,14 @@ namespace GPS.SimpleThreading.Management
                 string threadName = "Unscoped")
         {
             var thread = new FunctionThread<TData, TResult>(
-                function, priority, apartmentState, $"{threadName}: {threadCounter}");
-
-            return thread;
+                _logger, function, priority, apartmentState, 
+                $"{threadName}: {threadCounter}");
+                
+            using(var scope = _logger.BeginScope<string>("NewUnscopedFunctionThread(Func<TData, TReturn>)"))
+            {
+                _logger.LogInformation($"Created FunctionThread {thread.Name} - {apartmentState} - {priority}");
+                return thread;
+            }
         }
 
         private class ActionWrapper<T>

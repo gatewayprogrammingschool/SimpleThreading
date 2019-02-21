@@ -280,7 +280,7 @@ namespace GPS.SimpleThreading.Blocks
 
                     DataWarmup?.Invoke(item);
 
-                    var thread = GPSThreadFactory.NewUnScopedFunctionThread<TDataItem, TResult>(
+                    var thread = new GPSThreadFactory().NewUnScopedFunctionThread<TDataItem, TResult>(
                         this._threadProcessor, 
                         apartmentState: ApartmentState.MTA, 
                         threadName: "Thread Block"
@@ -325,7 +325,7 @@ namespace GPS.SimpleThreading.Blocks
 
                     if (continueOn)
                     {                        
-                        thread.Start(item);
+                        thread.StartSync(item);
 
                         lock (padLock)
                         {

@@ -28,7 +28,7 @@ namespace GPS.SimpleThreading.Management
         {
             AddThread(thread);
 
-            return thread.Start(data);
+            return thread.StartSync(data);
         }
 
         #region IDisposable Support

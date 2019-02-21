@@ -29,7 +29,7 @@ namespace GPS.SimpleThreading.Management
         public Task<TResult> Task => FunctionThread.Task;
 
         public TResult GetResult(TData data, int timeout) =>
-            FunctionThread.StartResult(data, Token.Token, timeout);
+            FunctionThread.StartResultSync(data, Token.Token, timeout).Result;
 
         #region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls
