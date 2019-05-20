@@ -1,3 +1,11 @@
+Version 3.0.1
+Payton Byrd (The Sharp Ninja)
+
+* Greatly improved performance
+* More thorough unit test that
+  executes the same data with
+  PLINQ for comparison.
+
 Version 3.0.0
 Payton Byrd (The Sharp Ninja)
 

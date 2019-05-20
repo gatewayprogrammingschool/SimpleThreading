@@ -3,7 +3,7 @@
   <metadata>
     <id>GPS.SimpleThreading</id>
     <title>GPS.SimpleThreading</title>
-    <version>3.1.0</version>
+    <version>3.1.1</version>
     <authors>Payton Byrd</authors>
     <owners>Gateway Programming School, Inc.</owners>
     <tags>Threading Parallel-Computing</tags>
@@ -11,13 +11,7 @@
     <projectUrl>http://simplethreading.gatewayprogramming.school</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>SimpleThreading is a small library of collections and blocks aimed to simplify parallel coding.</description>
-    <releaseNotes>Version 3.0.0
-Payton Byrd (The Sharp Ninja)
-
-* Removed Paket
-* Refactored projects for Netstandard 2.0
-* Added per-item continuation
-* Changed return types to inferred tuples containing the source data and result.</releaseNotes>
+    <releaseNotes></releaseNotes>
     <copyright>Copyright 2019 - Gateway Programming School</copyright>
   </metadata>
   <files>
