@@ -15,6 +15,6 @@
     <copyright>Copyright 2019 - Gateway Programming School</copyright>
   </metadata>
   <files>
-    <file src=".\bin\Release" target="netstandard2.0" exclude="**\*.nupkg" />
+    <file src=".\bin\Release\netstandard2.0\" target="lib\netstandard2.0" exclude="**\*.nupkg" />
   </files>
 </package>
