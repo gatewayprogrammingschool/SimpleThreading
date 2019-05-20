@@ -143,19 +143,27 @@ namespace GPS.SimpleThreading.Blocks
 
                     task.ContinueWith((resultTask, data) =>
                     {
-                        var returnValue = ((TData, TResult)?)(data, resultTask.Result);
-
-                        if (threadContinuation != null)
-                        {
-                            threadContinuation(resultTask, returnValue);
-                        }
-
-                        _results.AddOrUpdate(item, returnValue,
-                            (itemData, resultTaskResult) => resultTaskResult);
-
                         lock (padLock)
                         {
                             depth--;
+                        }
+
+                        if (resultTask.Exception == null)
+                        {
+                            var returnValue = ((TData, TResult)?)(data, resultTask.Result);
+
+                            if (threadContinuation != null)
+                            {
+                                threadContinuation(resultTask, returnValue);
+                            }
+
+                            _results.AddOrUpdate(item, returnValue,
+                                (itemData, resultTaskResult) => resultTaskResult);
+                        }
+                        else
+                        {
+                            _exceptions.AddOrUpdate(item, (item, resultTask.Exception),
+                                (itemData, ex) => (itemData, resultTask.Exception));
                         }
                     }, item);
 
@@ -237,7 +245,7 @@ namespace GPS.SimpleThreading.Blocks
             {
                 var exceptions = new ConcurrentDictionary<TData, (TData data, Exception exception)?>();
 
-                foreach(var key in _exceptions.Keys)
+                foreach (var key in _exceptions.Keys)
                 {
                     var result = _exceptions[key];
                     var value = key;

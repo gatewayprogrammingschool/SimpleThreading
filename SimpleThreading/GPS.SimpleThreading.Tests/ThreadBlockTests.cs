@@ -40,17 +40,17 @@ namespace GPS.SimpleThreading.Tests
                 _log.WriteLine($"Contrived Thread Continuation result: {result.Value.data}, {result.Value.result}");
             }
 
-            void PLINQContinuation((int data, string result)? result)
-            {
-                _log.WriteLine($"Contrived Thread Continuation result: {result.Value.data}, {result.Value.result}");
-            }
+            // void PLINQContinuation((int data, string result)? result)
+            // {
+            //     _log.WriteLine($"Contrived Thread Continuation result: {result.Value.data}, {result.Value.result}");
+            // }
 
             void BlockContinuation(ICollection<(int data, string result)?> results)
             {
                 _log.WriteLine($"Results count: {results.Count}");
             }
 
-            var dataSet = new int[500];
+            var dataSet = new int[20];
 
             var rand = new System.Random();
 
@@ -77,37 +77,39 @@ namespace GPS.SimpleThreading.Tests
             sw.Stop();
             var blockElapsed = sw.Elapsed;
 
-            sw = new System.Diagnostics.Stopwatch();
+            _log.WriteLine($"Finished in {blockElapsed.Milliseconds} ms");
 
-            sw.Start();
+            // sw = new System.Diagnostics.Stopwatch();
+
+            // sw.Start();
             
-            var resultSet = dataSet
-                .Select(data => { Warmup(data); return data; })
-                .AsParallel()
-                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
-                .WithDegreeOfParallelism(parallelism)
-                .Select(data => 
-                {
-                        return new Nullable<(int data, string result)>
-                            ((data: data, result: Processor(data)));
-                })
-                .AsSequential()
-                .Select(result => {
-                    PLINQContinuation(result);
-                    return result;
-                }).ToList();
+            // var resultSet = dataSet
+            //     .Select(data => { Warmup(data); return data; })
+            //     .AsParallel()
+            //     .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
+            //     .WithDegreeOfParallelism(parallelism)
+            //     .Select(data => 
+            //     {
+            //             return new Nullable<(int data, string result)>
+            //                 ((data: data, result: Processor(data)));
+            //     })
+            //     .AsSequential()
+            //     .Select(result => {
+            //         PLINQContinuation(result);
+            //         return result;
+            //     }).ToList();
 
-            BlockContinuation(resultSet.ToArray());
+            // BlockContinuation(resultSet.ToArray());
 
-            sw.Stop();
-            var plinqElapsed = sw.Elapsed;
+            // sw.Stop();
+            // var plinqElapsed = sw.Elapsed;
 
-            _log.WriteLine(
-                $"block: {blockElapsed.TotalSeconds}, " + 
-                $"PLINQ: {plinqElapsed.TotalSeconds}");
+            // _log.WriteLine(
+            //     $"block: {blockElapsed.TotalSeconds}, " + 
+            //     $"PLINQ: {plinqElapsed.TotalSeconds}");
 
             Assert.Equal(dataSet.Length, block.Results.Count + block.Exceptions.Count);
-            Assert.Equal(dataSet.Length, resultSet.Count);
+            // Assert.Equal(dataSet.Length, resultSet.Count);
 
             Assert.NotEqual(0, block.Exceptions.Count);
 
@@ -115,7 +117,7 @@ namespace GPS.SimpleThreading.Tests
 
             // This is here to force the test to fail
             // allowing dotnet test to output the log.
-            Assert.Equal(blockElapsed, plinqElapsed);
+            // Assert.Equal(blockElapsed, plinqElapsed);
         }
     }
 }
