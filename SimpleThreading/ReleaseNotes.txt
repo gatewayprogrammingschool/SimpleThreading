@@ -13,3 +13,9 @@ Payton Byrd (The Sharp Ninja)
 * Refactored projects for Netstandard 2.0
 * Added per-item continuation
 * Changed return types to inferred tuples containing the source data and result.
+
+Version 3.2.0
+Payton Byrd (The Sharp Ninja)
+
+* Exceptions now prevent not exiting the ThreadBlock
+* Exceptions are logged to a new ConcurrentDictionary on the ThreadBlock
