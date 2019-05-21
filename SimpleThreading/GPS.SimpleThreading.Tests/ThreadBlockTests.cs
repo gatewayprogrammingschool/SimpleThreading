@@ -113,6 +113,7 @@ namespace GPS.SimpleThreading.Tests
 
             Assert.NotEqual(0, block.Exceptions.Count);
 
+            block.Results.Values.ToList().ForEach(ex => _log.WriteLine(ex.ToString()));            
             block.Exceptions.Values.ToList().ForEach(ex => _log.WriteLine(ex.ToString()));
 
             // This is here to force the test to fail
