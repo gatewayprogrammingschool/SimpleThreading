@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GPS.SimpleThreading\GPS.SimpleThreading.csproj" />
+    <ProjectReference Include="..\..\src\GPS.SimpleThreading\GPS.SimpleThreading.csproj" />
   </ItemGroup>
 
 </Project>
