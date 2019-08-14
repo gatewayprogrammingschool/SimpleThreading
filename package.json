@@ -1,0 +1,30 @@
+{
+  "name": "gps.simplethreading",
+  "version": "1.0.0",
+  "description": "Simple Threading Library for Dotnet",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "cz-conventional-changelog": "^3.0.2"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gatewayprogrammingschool/SimpleThreading.git"
+  },
+  "author": "Payton Byrd (Sharp Ninja)",
+  "publisher": "Gateway Programming School, Inc.",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gatewayprogrammingschool/SimpleThreading/issues"
+  },
+  "homepage": "https://github.com/gatewayprogrammingschool/SimpleThreading#readme",
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  }
+}

@@ -7,8 +7,8 @@
     <RootNamespace>GPS.SimpleThreading</RootNamespace>
     <AssemblyName>GPS.SimpleThreading</AssemblyName>
     <PackageOutputPath>..\Assets</PackageOutputPath>
-    <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>Marcum.snk</AssemblyOriginatorKeyFile>
+    <!-- <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>Marcum.snk</AssemblyOriginatorKeyFile> -->
   </PropertyGroup>
 
 </Project>
