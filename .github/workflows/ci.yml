@@ -34,6 +34,9 @@ jobs:
 
       # Runs a set of commands using the runners shell
       - name: Build, Test, Deploy
+        env:
+          source: ${{ secrets.source }}
+          apikey: ${{ secrets.apikey }}
         run: |
           cd src
           dotnet build
