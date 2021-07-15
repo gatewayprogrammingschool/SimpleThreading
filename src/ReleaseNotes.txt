@@ -19,3 +19,13 @@ Payton Byrd (The Sharp Ninja)
 
 * Exceptions now prevent not exiting the ThreadBlock
 * Exceptions are logged to a new ConcurrentDictionary on the ThreadBlock
+
+Version 4.0.  
+Payton Byrd (The Sharp Ninja)
+
+New Features:
+
+* Purely Asynchronous mode.  No waits.
+* Pipeline mode.  Allow continuous processing even after Queue is drained.
+* More and better unit tests.
+* Consistently faster than PLINQ.

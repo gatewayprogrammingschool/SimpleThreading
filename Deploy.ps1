@@ -22,7 +22,7 @@ function Deploy-Package {
         & nuget.exe pack $nuspec -OutputDirectory ..\Assets\
         if ($LASTEXITCODE -eq 0) {
             $package = Get-ChildItem $nupkg | Sort-Object | Select-Object -Last 1
-        & nuget.exe push $package.FullName -ApiKey $env:apiKey -Source $env:source
+        & nuget.exe push $package.FullName -ApiKey $apiKey -Source $source
     }
 }
 }
@@ -31,7 +31,7 @@ Clear-Host
 
 #Deploy-Package -SolutionDir %1 -BuildDir %2 -Namespace %3 -Assembly %4
 Deploy-Package `
-    -SolutionDir 'e:\GitHub\SimpleThreading'`
-    -BuildDir 'e:\GitHub\SimpleThreading\src\GPS.SimpleThreading\bin\Release'`
+    -SolutionDir './'`
+    -BuildDir './src/GPS.SimpleThreading/bin/Release'`
     -Namespace "GPS.SimpleThreading"`
     -Assembly "GPS.SimpleThreading.dll"
