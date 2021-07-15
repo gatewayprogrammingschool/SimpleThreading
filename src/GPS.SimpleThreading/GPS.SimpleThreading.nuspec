@@ -3,18 +3,20 @@
   <metadata>
     <id>GPS.SimpleThreading</id>
     <title>GPS.SimpleThreading</title>
-    <version>3.2.1</version>
+    <version>4.0.0</version>
     <authors>Payton Byrd</authors>
     <owners>Gateway Programming School, Inc.</owners>
     <tags>Threading Parallel-Computing</tags>
-    <licenseUrl>https://github.com/gatewayprogrammingschool/SimpleThreading/blob/master/LICENSE</licenseUrl>
+    <license type="MIT" />
     <projectUrl>http://simplethreading.gatewayprogramming.school</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>SimpleThreading is a small library of collections and blocks aimed to simplify parallel coding.</description>
+    <description>SimpleThreading is a library containing a threaded block and threaded pipeline.</description>
     <releaseNotes></releaseNotes>
-    <copyright>Copyright 2019 - Gateway Programming School</copyright>
+    <copyright>©️ 2019-2021 - Gateway Programming School</copyright>
   </metadata>
   <files>
-    <file src=".\bin\Release\netstandard2.0\" target="lib\netstandard2.0" exclude="**\*.nupkg" />
+	  <file src=".\bin\Release\netstandard2.0\" target="lib\netstandard2.0" exclude="**\*.nupkg" />
+	  <file src=".\bin\Release\netstandard2.1\" target="lib\netstandard2.1" exclude="**\*.nupkg" />
+	  <file src=".\bin\Release\net5.0\" target="lib\net5.0" exclude="**\*.nupkg" />
   </files>
 </package>
