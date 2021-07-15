@@ -11,8 +11,8 @@ function Deploy-Package {
     $assm = $BuildDir + '/' + $Assembly
     $nuspec =  $Namespace + '.nuspec'
     $nupkg = '../Assets/' + $Namespace + '*.nupkg'
-    $apiKey = $env:ApiKey
-    $source = $env:NugetSource
+    $apiKey = $env:apikey
+    $source = $env:source
 
     Write-Host "`$SolutionDir: $SolutionDir"
     Write-Host "`$BuildDir: $BuildDir"
