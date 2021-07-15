@@ -14,17 +14,33 @@ function Deploy-Package {
     $apiKey = $env:ApiKey
     $source = $env:NugetSource
 
-    Set-Location $projFolder
+    if(Test-Path $projFolder) {
+        Set-Location $projFolder
 
-    & "C:\Program Files (x86)\Microsoft Visual Studio\2017\MSBuild\15.0\Bin\msbuild.exe" $proj /p:Configuration=Release
+        & dotnet build $proj --configuration Release --no-restore
 
-    if ($LASTEXITCODE -eq 0) {
-        & nuget.exe pack $nuspec -OutputDirectory ..\Assets\
         if ($LASTEXITCODE -eq 0) {
-            $package = Get-ChildItem $nupkg | Sort-Object | Select-Object -Last 1
-        & nuget.exe push $package.FullName -ApiKey $apiKey -Source $source
+            & nuget.exe pack $nuspec -OutputDirectory ..\Assets\
+            if ($LASTEXITCODE -eq 0) {
+                $package = Get-ChildItem $nupkg | Sort-Object | Select-Object -Last 1
+                & nuget.exe push $package.FullName -ApiKey $apiKey -Source $source
+            }
+        }
+    } else {
+        Write-Host "`$SolutionDir: $SolutionDir"
+        Write-Host "`$BuildDir: $BuildDir"
+        Write-Host "`$Namespace: $Namespace"
+        Write-Host "`$Assembly: $Assembly"
+        Write-Host "`$projFolder: $projFolder"
+        Write-Host "`$proj: $proj"
+        Write-Host "`$assm: $assm"
+        Write-Host "`$nuspec: $nuspec"
+        Write-Host "`$nupkg: $nupkg"
+        Write-Host "`$proj: $proj"
+        Write-Host "`$source: $source"
+
+        throw "Project Folder not found."
     }
-}
 }
 
 Clear-Host
