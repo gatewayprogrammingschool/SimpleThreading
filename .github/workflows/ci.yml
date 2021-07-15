@@ -38,6 +38,10 @@ jobs:
           source: ${{ secrets.source }}
           apikey: ${{ secrets.apikey }}
         run: |
+          Write-Host "`$env:source: ${env:source}"
+          Write-Host "`$env:apikey: ${env:apikey}"
+          Write-Host "`$source: ${source}"
+          Write-Host "`$apikey: ${apikey}"
           cd src
           dotnet build
           # dotnet test --no-build
