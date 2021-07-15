@@ -37,7 +37,7 @@ jobs:
         run: |
           cd src
           dotnet build
-          dotnet test --no-build
+          # dotnet test --no-build
           cd ..
-          . Deploy.ps1
+          . ./Deploy.ps1
           
