@@ -9,8 +9,8 @@ function Deploy-Package {
     $projFolder = $SolutionDir + '/' + $Namespace + '/'
     $proj = $projFolder + $Namespace + '.csproj'
     $assm = $BuildDir + '/' + $Assembly
-    $nuspec = $SolutionDir + '/' + $Namespace + '/' + $Namespace + '.nuspec'
-    $nupkg = $SolutionDir + '/Assets/' + $Namespace + '*.nupkg'
+    $nuspec =  $Namespace + '.nuspec'
+    $nupkg = '../Assets/' + $Namespace + '*.nupkg'
     $apiKey = $env:ApiKey
     $source = $env:NugetSource
 
