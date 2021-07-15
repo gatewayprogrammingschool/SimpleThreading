@@ -7,7 +7,7 @@
     <authors>Payton Byrd</authors>
     <owners>Gateway Programming School, Inc.</owners>
     <tags>Threading Parallel-Computing</tags>
-    <license type="mit" />
+    <license type="expression">MIT</license>
     <projectUrl>http://simplethreading.gatewayprogramming.school</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>SimpleThreading is a library containing a threaded block and threaded pipeline.</description>
