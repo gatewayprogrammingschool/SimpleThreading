@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 #nullable enable
+#pragma warning disable CS8629 // Nullable value type may be null.
 // ReSharper disable AccessToModifiedClosure
 // ReSharper disable UnusedMember.Global
 
@@ -25,17 +26,15 @@ namespace GPS.SimpleThreading.Blocks
     /// </remarks>
     public sealed class ThreadBlock<TData, TResult>
     {
-        private readonly Func<TData?, TResult?> _action;
         private readonly Func<TData?, Task<TResult?>> _asyncAction;
         private readonly Func<ICollection<(TData? data, TResult? result)?>, Task>? _asyncContinuation;
-        private readonly Action<ICollection<(TData? data, TResult? result)?>>? _continuation;
 
-        private readonly ConcurrentDictionary<TData?, (TData? data, Exception result)?> _exceptions = new();
-        private readonly ConcurrentDictionary<TData?, (TData? data, TResult? result)?> _results = new();
+        private readonly ConcurrentDictionary<Option<TData>, (Option<TData> data, Exception result)?> _exceptions = new();
+        private readonly ConcurrentDictionary<Option<TData>, (Option<TData> data, Option<TResult> result)?> _results = new();
 
         private bool _locked;
 
-        private ConcurrentQueue<TData?> _queue = new();
+        private ConcurrentQueue<Option<TData>> _queue = new();
 
         /// <summary>
         ///     Constructor accepting the action and block continuation.
@@ -44,14 +43,12 @@ namespace GPS.SimpleThreading.Blocks
             Func<TData?, TResult?> action,
             Action<ICollection<(TData? data, TResult? result)?>>? continuation = null)
         {
-            _action = action;
             _asyncAction = data =>
             {
                 var result = action(data);
                 return Task.FromResult(result);
             };
 
-            _continuation = continuation;
             _asyncContinuation = tuples =>
             {
                 continuation?.Invoke(tuples);
@@ -67,9 +64,7 @@ namespace GPS.SimpleThreading.Blocks
             Func<ICollection<(TData? data, TResult? result)?>, Task>? asyncContinuation = null)
         {
             _asyncAction = asyncAction;
-            _action = data => asyncAction.Invoke(data).GetAwaiter().GetResult();
             _asyncContinuation = asyncContinuation;
-            _continuation = tuples => asyncContinuation?.Invoke(tuples).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -81,13 +76,13 @@ namespace GPS.SimpleThreading.Blocks
         ///     Point-in-time results providing a stable result set
         ///     for processing results as the block runs.
         /// </summary>
-        public ConcurrentDictionary<TData?, (TData? data, TResult? result)?> Results
+        public ConcurrentDictionary<Option<TData>, (Option<TData> data, Option<TResult> result)?> Results
         {
             get
             {
                 var snapshot = _results.ToArray();
 
-                var results = new ConcurrentDictionary<TData?, (TData? data, TResult? result)?>();
+                var results = new ConcurrentDictionary<Option<TData>, (Option<TData> data, Option<TResult> result)?>();
 
                 foreach (var kvp in snapshot)
                 {
@@ -102,13 +97,13 @@ namespace GPS.SimpleThreading.Blocks
         ///     Point-in-time exceptions providing a stable ConcurrentDictionary
         ///     for processing exceptions as the block runs.
         /// </summary>
-        public ConcurrentDictionary<TData?, (TData? data, Exception exception)?> Exceptions
+        public ConcurrentDictionary<Option<TData>, (Option<TData> data, Exception exception)?> Exceptions
         {
             get
             {
                 var snapshot = _exceptions.ToArray();
 
-                var exceptions = new ConcurrentDictionary<TData?, (TData? data, Exception exception)?>();
+                var exceptions = new ConcurrentDictionary<Option<TData>, (Option<TData> data, Exception exception)?>();
 
                 foreach (var kvp in snapshot)
                 {
@@ -124,7 +119,7 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public void Add(TData? item)
         {
-            if (!_locked) _queue.Enqueue(item);
+            if (!_locked) _queue.Enqueue(new Option<TData>(item));
             else throw new LockedException();
         }
 
@@ -133,7 +128,7 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public void AddRange(IEnumerable<TData?> collection)
         {
-            if (!_locked) Parallel.ForEach(collection, _queue.Enqueue);
+            if (!_locked) Parallel.ForEach(collection.Select(item => new Option<TData>(item)), _queue.Enqueue);
             else throw new LockedException();
         }
 
@@ -142,7 +137,7 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public void AddRange(IProducerConsumerCollection<TData?> collection)
         {
-            if (!_locked) Parallel.ForEach(collection, _queue.Enqueue);
+            if (!_locked) Parallel.ForEach(collection.Select(item => new Option<TData>(item)), _queue.Enqueue);
             else throw new LockedException();
         }
 
@@ -151,7 +146,7 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public void OrderedAddRange(IEnumerable<TData?> collection)
         {
-            if (!_locked) collection.ToList().ForEach(_queue.Enqueue);
+            if (!_locked) collection.Select(item => new Option<TData>(item)).ToList().ForEach(_queue.Enqueue);
             else throw new LockedException();
         }
 
@@ -160,7 +155,7 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public void OrderedAddRange(IProducerConsumerCollection<TData?> collection)
         {
-            if (!_locked) collection.ToList().ForEach(_queue.Enqueue);
+            if (!_locked) collection.Select(item => new Option<TData>(item)).ToList().ForEach(_queue.Enqueue);
             else throw new LockedException();
         }
 
@@ -172,7 +167,10 @@ namespace GPS.SimpleThreading.Blocks
             if (_locked) return false;
 
             var items = _queue.ToList();
-            if (items.Remove(item)) _queue = new ConcurrentQueue<TData?>(items);
+            if (items.Remove(new Option<TData>(item)))
+            {
+                _queue = new ConcurrentQueue<Option<TData>>(items);
+            }
 
             return false;
         }
@@ -209,7 +207,7 @@ namespace GPS.SimpleThreading.Blocks
             ExecuteAsync(maxDegreeOfParallelism, warmupItemAsync, threadContinuationAsync, token).GetAwaiter().GetResult();
         }
 
-        public async Task<IEnumerable<TResult?>> ExecuteAsync(
+        public async Task<IEnumerable<Option<TResult>>> ExecuteAsync(
             int maxDegreeOfParallelism = -1,
             Func<TData?, Task>? warmupItem = null,
             Func<Task, (TData? data, TResult? result)?, Task>? threadContinuation = null,
@@ -232,7 +230,7 @@ namespace GPS.SimpleThreading.Blocks
 
             while (_queue.Count > 0)
             {
-                TData? item = default;
+                Option<TData> item = default;
                 Task<TResult?>? t = default;
 
                 try
@@ -256,7 +254,7 @@ namespace GPS.SimpleThreading.Blocks
 
                     if (warmupItem is not null)
                     {
-                        await warmupItem(item);
+                        await warmupItem(item.Value);
                     }
 
                     if (token.IsCancellationRequested)
@@ -268,7 +266,7 @@ namespace GPS.SimpleThreading.Blocks
                     {
                         try
                         {
-                            t = _asyncAction(item);
+                            t = _asyncAction(item.Value);
                             await t;
                         }
                         catch (Exception ex)
@@ -280,7 +278,7 @@ namespace GPS.SimpleThreading.Blocks
 
                         try
                         {
-                            await Continuation(t, item);
+                            await Continuation(t, item.Value);
                         }
                         catch (Exception ex)
                         {
@@ -327,7 +325,8 @@ namespace GPS.SimpleThreading.Blocks
 
                 if (_asyncContinuation is not null)
                 {
-                    await _asyncContinuation(_results.Values);
+                    var results = _results.Values.Select(r => new (TData? data, TResult? result)?((r.Value.data.Value, r.Value.result.Value))).ToList();
+                    await _asyncContinuation(results);
                 }
             }
             catch (Exception ex)
@@ -348,13 +347,31 @@ namespace GPS.SimpleThreading.Blocks
                         await threadContinuation(resultTask, returnValue);
                     }
 
-                    _results.AddOrUpdate(data, returnValue, (_, _) => returnValue);
+                    var toSave = (new Option<TData>(returnValue.Value.Item1),
+                        new Option<TResult>(returnValue.Value.Item2));
+                    _results.AddOrUpdate(new Option<TData>(data), toSave, (_, _) => toSave);
                 }
                 else
                 {
-                    _exceptions.AddOrUpdate(data, (data, resultTask.Exception), (_, _) => (data, resultTask.Exception));
+                    var toSave = (new Option<TData>(data), resultTask.Exception);
+                    _exceptions.AddOrUpdate(new Option<TData>(data), toSave, (_, _) => toSave);
                 }
             }
         }
     }
+
+    public struct Option<T>
+    {
+        public Option(T? value)
+        {
+            Value = value;
+        }
+
+        public T? Value { get; set; }
+
+        public static Option<T> None = default;
+        public static Option<T> Some(T value) => new(value);
+        public override string ToString() => Value?.ToString() ?? string.Empty;
+    }
 }
+#pragma warning restore CS8629 // Nullable value type may be null.

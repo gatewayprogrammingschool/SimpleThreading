@@ -32,9 +32,12 @@ function Deploy-Package {
         & dotnet build --configuration Release --no-restore
 
         if ($LASTEXITCODE -eq 0) {
+            Write-Host "nuget.exe pack $nuspec -OutputDirectory ../Assets/"
             & nuget.exe pack $nuspec -OutputDirectory ../Assets/
             if ($LASTEXITCODE -eq 0) {
+                Write-Host "Get-ChildItem $nupkg | Sort-Object | Select-Object -Last 1"
                 $package = Get-ChildItem $nupkg | Sort-Object | Select-Object -Last 1
+                Write-Host "nuget.exe push $package.FullName -ApiKey `$apiKey -Source $source"
                 & nuget.exe push $package.FullName -ApiKey $apiKey -Source $source
             }
         }
