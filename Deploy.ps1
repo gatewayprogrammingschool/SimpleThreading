@@ -6,11 +6,11 @@ function Deploy-Package {
         [Parameter(Mandatory = $true)][string]$Assembly
     )	
 
-    $projFolder = $SolutionDir + '\' + $Namespace + '\'
+    $projFolder = $SolutionDir + '/' + $Namespace + '/'
     $proj = $projFolder + $Namespace + '.csproj'
-    $assm = $BuildDir + '\' + $Assembly
-    $nuspec = $SolutionDir + '\' + $Namespace + '\' + $Namespace + '.nuspec'
-    $nupkg = $SolutionDir + '\Assets\' + $Namespace + '*.nupkg'
+    $assm = $BuildDir + '/' + $Assembly
+    $nuspec = $SolutionDir + '/' + $Namespace + '/' + $Namespace + '.nuspec'
+    $nupkg = $SolutionDir + '/Assets/' + $Namespace + '*.nupkg'
     $apiKey = $env:ApiKey
     $source = $env:NugetSource
 
@@ -47,7 +47,7 @@ Clear-Host
 
 #Deploy-Package -SolutionDir %1 -BuildDir %2 -Namespace %3 -Assembly %4
 Deploy-Package `
-    -SolutionDir './'`
+    -SolutionDir './src'`
     -BuildDir './src/GPS.SimpleThreading/bin/Release'`
     -Namespace "GPS.SimpleThreading"`
     -Assembly "GPS.SimpleThreading.dll"

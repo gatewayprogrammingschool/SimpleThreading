@@ -344,7 +344,7 @@ namespace GPS.SimpleThreading.Tests
 
                 sw.Stop();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // ignore
             }
@@ -373,7 +373,7 @@ namespace GPS.SimpleThreading.Tests
 
                 sw.Stop();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // ignore
             }
