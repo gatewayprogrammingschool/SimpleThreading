@@ -38,7 +38,7 @@ function Deploy-Package {
                 Write-Host "Get-ChildItem $nupkg | Sort-Object | Select-Object -Last 1"
                 $package = Get-ChildItem $nupkg | Sort-Object | Select-Object -Last 1
                 Write-Host "nuget.exe push $package.FullName -ApiKey `$apiKey -Source $source"
-                & nuget.exe push $package.FullName -ApiKey $apiKey -Source $source
+                & nuget.exe push $package.FullName -ApiKey $apiKey -Source $source -SkipDuplicate
             }
         }
     } else {
