@@ -146,7 +146,14 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public void OrderedAddRange(IEnumerable<TData?> collection)
         {
-            if (!_locked) collection.Select(item => new Option<TData>(item)).ToList().ForEach(_queue.Enqueue);
+            if (!_locked)
+            {
+                var toAdd = collection
+                    .Select(item => new Option<TData>(item))
+                    .ToList();
+
+                toAdd.ForEach(_queue.Enqueue);
+            }
             else throw new LockedException();
         }
 
@@ -155,7 +162,14 @@ namespace GPS.SimpleThreading.Blocks
         /// </summary>
         public void OrderedAddRange(IProducerConsumerCollection<TData?> collection)
         {
-            if (!_locked) collection.Select(item => new Option<TData>(item)).ToList().ForEach(_queue.Enqueue);
+            if (!_locked)
+            {
+                var toAdd = collection
+                    .Select(item => new Option<TData>(item))
+                    .ToList();
+
+                toAdd.ForEach(_queue.Enqueue);
+            }
             else throw new LockedException();
         }
 
