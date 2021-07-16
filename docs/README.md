@@ -17,7 +17,7 @@ NuGet package `__GPS.SimpleThreading__` into your project.
 
 _**Example**_
 
-```csharp { title: Execution }
+```csharp
     // Structure to write to on-the-fly.
     var results = new ConcurrentDictionary<string, int>();
 
